@@ -37,7 +37,7 @@ def train(args):
     elif args.strategy == "colossalai_gemini":
         strategy = GeminiStrategy(placement_policy="auto")
     elif args.strategy == "colossalai_zero2":
-        strategy = LowLevelZeroStrategy(stage=2, placement_policy="cuda")
+        strategy = LowLevelZeroStrategy(stage=2, placement_policy="cpu")
     else:
         raise ValueError(f'Unsupported strategy "{args.strategy}"')
 

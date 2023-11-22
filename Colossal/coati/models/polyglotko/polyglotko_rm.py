@@ -3,7 +3,10 @@ import torch
 
 import torch.nn as nn
 from transformers.models.gpt_neox.configuration_gpt_neox import GPTNeoXConfig
-from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXForCausalLM, GPTNeoXModel
+from transformers.models.gpt_neox.modeling_gpt_neox import (
+    GPTNeoXForCausalLM,
+    GPTNeoXModel,
+)
 
 
 from ..base import RewardModel
@@ -28,8 +31,7 @@ class PolyglotkoRM(RewardModel):
         lora_train_bias: str = "none",
     ) -> None:
         if pretrained is not None:
-            model = GPTNeoXModel.from_pretrained(pretrained, 
-            torch_dtype=torch.float16)
+            model = GPTNeoXModel.from_pretrained(pretrained, torch_dtype=torch.bfloat16)
         elif config is not None:
             model = GPTNeoXModel(config)
         else:

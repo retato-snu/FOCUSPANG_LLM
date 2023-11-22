@@ -27,6 +27,22 @@ from transformers import (
 from colossalai.nn.optimizer import HybridAdam
 
 
+import nvidia_smi
+
+
+def print_gpu_memory():
+    # Get GPU memory usage info
+    nvidia_smi.nvmlInit()
+    deviceCount = nvidia_smi.nvmlDeviceGetCount()
+    freem = []
+    for i in range(deviceCount):
+        handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+        freem.append(info.used)
+    nvidia_smi.nvmlShutdown()
+    print(f"GPU memory usage: {freem}")
+
+
 def main(args):
     # configure strategy
     if args.strategy == "ddp":
@@ -91,7 +107,11 @@ def main(args):
             reward_model.load_state_dict(state_dict, strict=False)
 
         initial_model.to(torch.bfloat16).to(torch.cuda.current_device())
+        print("Initial model")
+        print_gpu_memory()
         reward_model.to(torch.bfloat16).to(torch.cuda.current_device())
+        print("Reward model")
+        print_gpu_memory()
 
         if args.model == "gpt2":
             actor = GPTActor(pretrained=args.pretrain, lora_rank=args.lora_rank)
@@ -132,7 +152,11 @@ def main(args):
             del state_dict
 
         actor.to(torch.bfloat16).to(torch.cuda.current_device())
+        print("Actor")
+        print_gpu_memory()
         critic.to(torch.bfloat16).to(torch.cuda.current_device())
+        print("Critic")
+        print_gpu_memory()
 
     # configure optimizer
     if args.strategy.startswith("colossalai"):
@@ -269,6 +293,8 @@ def main(args):
         log_dir=args.log_dir,
         use_wandb=args.use_wandb,
     )
+    print("Fit")
+    print_gpu_memory()
 
     if args.lora_rank > 0 and args.merge_lora_weights:
         from coati.models.lora import LORA_MANAGER

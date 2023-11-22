@@ -1,0 +1,3 @@
+[submodule "FOCUSPANG_Private"]
+	path = FOCUSPANG_Private
+	url = git@github.com:retato-snu/FOCUSPANG_Private.git

@@ -32,6 +32,21 @@ from transformers.trainer import get_scheduler
 from colossalai.logging import get_dist_logger
 from colossalai.nn.optimizer import HybridAdam
 
+import nvidia_smi
+
+
+def print_gpu_memory():
+    # Get GPU memory usage info
+    nvidia_smi.nvmlInit()
+    deviceCount = nvidia_smi.nvmlDeviceGetCount()
+    freem = []
+    for i in range(deviceCount):
+        handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+        freem.append(info.used)
+    nvidia_smi.nvmlShutdown()
+    print(f"GPU memory usage: {freem}")
+
 
 def train(args):
     # configure strategy
@@ -45,11 +60,11 @@ def train(args):
         strategy = LowLevelZeroStrategy(stage=2, placement_policy="cpu")
     else:
         raise ValueError(f'Unsupported strategy "{args.strategy}"')
-
     # configure model
     if args.lora_rank > 0:
         warnings.warn("Gradient checkpoint is disabled when using LoRA")
         args.grad_checkpoint = False
+
     with strategy.model_init_context():
         if args.model == "bloom":
             model = BLOOMActor(
@@ -94,6 +109,7 @@ def train(args):
             raise ValueError(f'Unsupported model "{args.model}"')
 
         model.to(torch.bfloat16).to(torch.cuda.current_device())
+        print_gpu_memory()
 
     # configure tokenizer
     if args.model == "gpt2":
@@ -247,6 +263,7 @@ def train(args):
         log_dir=args.log_dir,
         use_wandb=args.use_wandb,
     )
+    print_gpu_memory()
 
     if args.lora_rank > 0 and args.merge_lora_weights:
         from coati.models.lora import LORA_MANAGER

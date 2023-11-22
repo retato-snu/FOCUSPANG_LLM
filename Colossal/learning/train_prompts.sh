@@ -21,16 +21,16 @@ set_n_least_used_CUDA_VISIBLE_DEVICES 2
 
 torchrun --standalone --nproc_per_node=2 train_prompts.py \
     --model polyglotko \
-    --pretrain output/polyglot-ko-5.8b-lora-koChat_2 \
+    --pretrain model_output/polyglot-ko-12.8b-lora-koChat \
     --pretrain_dataset /mnt/ColossalAI/applications/Chat/examples/KoChatGPT/data_kochatgpt/kochatgpt_1_SFT.jsonl  \
     --prompt_dataset /mnt/ColossalAI/applications/Chat/examples/KoChatGPT/data_kochatgpt/kochatgpt_3_PPO.jsonl \
     --strategy colossalai_zero2 \
-    --rm_model polyglotko \
-    --rm_pretrain "/mnt/hf/polyglot-ko-1.3b" \
-    --rm_path output/polyglotko-1.3-rm \
+    --rm_model gpt-neox \
+    --rm_pretrain "/mnt/hf/korean-gpt-neox-125M" \
+    --rm_path model_output/korean-gpt-neox-125M-rm \
     --num_episodes 1 --num_collect_steps 2 --num_update_steps 1 \
     --train_batch_size 4 \
-    --save_path output/ppo_polyglotko-5.8+1.3_test \
+    --save_path model_output/ppo_polyglotko-12.8+125_test \
     --lora_rank 8 \
     --language 'ko' \
     --instruction_str "prompt"\

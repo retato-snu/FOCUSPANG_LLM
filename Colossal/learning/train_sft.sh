@@ -1,5 +1,7 @@
 #!/bin/bash
 
+StartTime=$(date +%s)
+
 set_n_least_used_CUDA_VISIBLE_DEVICES() {
     local n=${1:-"9999"}
     echo "GPU Memory Usage:"
@@ -30,8 +32,8 @@ torchrun --standalone --nproc_per_node=2 train_sft.py \
     --lora_rank 8 \
     --language 'ko' \
     --without_prompt true \
-    # --instruction_str "prompt" \
-    # --output_str "completion" \
-    # --max_datasets_size 512 
-    # --dataset /mnt/nlp_explaination/hf-nlp/dataset/ko_alpaca_data.json \
-    
+
+
+EndTime=$(date +%s)
+
+echo "It takes $(($EndTime - $StartTime)) seconds."
