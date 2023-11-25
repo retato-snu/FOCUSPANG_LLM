@@ -52,7 +52,7 @@ def categorize():
         else:
             impulsiveness_student_data.append(data)
 
-def generate_is():
+def generate_is(n):
     for data in impulsiveness_student_data:
         print(1)
         ins = data["instruction"]
@@ -61,18 +61,19 @@ def generate_is():
         message = [
             {"role":"user", "content":(prefix+get_data(ins)+get_data_description(ins)+suffix)},
         ]
-        response = request_gpt(message)
-        idx1 = response.find("<수정된 데이터>")
-        idx2 = find_2nd(response, "```")
-        res = ins.replace(get_data(ins),response[idx1:idx2+3]+"\n")
-        r_data = {
-            "prompt": res
-        }
-        print(res)
-        result_data.append(r_data)
+        for i in range(n):
+            response = request_gpt(message)
+            idx1 = response.find("<수정된 데이터>")
+            idx2 = find_2nd(response, "```")
+            res = ins.replace(get_data(ins),response[idx1:idx2+3]+"\n")
+            r_data = {
+                "prompt": res
+            }
+            print(res)
+            result_data.append(r_data)
         
 
-def generate_ic():
+def generate_ic(n):
     for data in impulsiveness_count_data:
         print(2)
         ins = data["instruction"]
@@ -81,19 +82,22 @@ def generate_ic():
         message = [
             {"role":"user", "content":(prefix+get_data(ins)+get_data_description(ins)+suffix)},
         ]
-        response = request_gpt(message)
-        idx1 = response.find("<수정된 데이터>")
-        idx2 = find_2nd(response, "```")
-        res = ins.replace(get_data(ins),response[idx1:idx2+3]+"\n")
-        r_data = {
-            "prompt": res
-        }
-        print(res)
-        result_data.append(r_data)
+        for i in range(n):
+            response = request_gpt(message)
+            idx1 = response.find("<수정된 데이터>")
+            idx2 = find_2nd(response, "```")
+            res = ins.replace(get_data(ins),response[idx1:idx2+3]+"\n")
+            r_data = {
+                "prompt": res
+            }
+            print(res)
+            result_data.append(r_data)
 
 if __name__ == "__main__":
+    n = int(input("만들 데이터 개수(500의 배수로)"))
+    n = int(n / 500)
     categorize()
-    generate_is()
-    generate_ic()
+    generate_is(n)
+    generate_ic(n)
     with open(result_path, "w", encoding='utf-8') as json_file:
         json.dump(result_data, json_file, indent = 4, ensure_ascii=False)
