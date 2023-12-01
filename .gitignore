@@ -171,3 +171,6 @@ model_output/
 
 # logs 
 logs/
+
+# wandb
+wandb/

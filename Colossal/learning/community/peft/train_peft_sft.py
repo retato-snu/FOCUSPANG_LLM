@@ -32,8 +32,12 @@ def train(args):
 
     # configure model
     with strategy.model_init_context():
-        print("Warning: currently only bloom is tested, gpt2,llama and opt are not tested")
-        model = AutoModelForCausalLM.from_pretrained(args.pretrain).to(torch.cuda.current_device())
+        print(
+            "Warning: currently only bloom is tested, gpt2,llama and opt are not tested"
+        )
+        model = AutoModelForCausalLM.from_pretrained(args.pretrain).to(
+            torch.cuda.current_device()
+        )
         # if the args.save_path exists and args.save_path+'/adapter_config.json' exists, we'll load the adapter_config.json
         if (
             os.path.exists(args.save_path)
@@ -47,7 +51,11 @@ def train(args):
             lora_rank = args.lora_rank if args.lora_rank > 0 else 32
             # config lora with rank of lora_rank
             lora_config = LoraConfig(
-                task_type=TaskType.CAUSAL_LM, inference_mode=False, r=lora_rank, lora_alpha=32, lora_dropout=0.1
+                task_type=TaskType.CAUSAL_LM,
+                inference_mode=False,
+                r=lora_rank,
+                lora_alpha=32,
+                lora_dropout=0.1,
             )
             model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
@@ -93,12 +101,18 @@ def train(args):
     logger.set_level("WARNING")
 
     # configure dataset
-    law_dataset = EasyDataset(args.dataset, tokenizer=tokenizer, is_group_texts=not args.is_short_text)
+    law_dataset = EasyDataset(
+        args.dataset, tokenizer=tokenizer, is_group_texts=not args.is_short_text
+    )
     train_dataset = law_dataset
     print(train_dataset)
     eval_dataset = None
     if args.eval_dataset is not None:
-        eval_dataset = EasyDataset(args.eval_dataset, tokenizer=tokenizer, is_group_texts=not args.is_short_text)
+        eval_dataset = EasyDataset(
+            args.eval_dataset,
+            tokenizer=tokenizer,
+            is_group_texts=not args.is_short_text,
+        )
     data_collator = default_collate
     if dist.is_initialized() and dist.get_world_size() > 1:
         train_sampler = DistributedSampler(
@@ -160,14 +174,22 @@ def train(args):
     # save optimizer checkpoint on all ranks
     if args.need_optim_ckpt:
         strategy.save_optimizer(
-            trainer.optimizer, "rm_optim_checkpoint_%d.pt" % (torch.cuda.current_device()), only_rank0=False
+            trainer.optimizer,
+            "rm_optim_checkpoint_%d.pt" % (torch.cuda.current_device()),
+            only_rank0=False,
         )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--strategy", choices=["ddp", "colossalai_gemini", "colossalai_zero2"], default="ddp")
-    parser.add_argument("--model", choices=["gpt2", "bloom", "opt", "llama"], default="bloom")
+    parser.add_argument(
+        "--strategy",
+        choices=["ddp", "colossalai_gemini", "colossalai_zero2"],
+        default="ddp",
+    )
+    parser.add_argument(
+        "--model", choices=["gpt2", "bloom", "opt", "llama"], default="bloom"
+    )
     parser.add_argument("--pretrain", type=str, default=None)
     parser.add_argument("--dataset", type=str, default=None)
     parser.add_argument("--eval_dataset", type=str, default=None)
@@ -175,8 +197,12 @@ if __name__ == "__main__":
     parser.add_argument("--need_optim_ckpt", type=bool, default=False)
     parser.add_argument("--max_epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--lora_rank", type=int, default=0, help="low-rank adaptation matrices rank")
-    parser.add_argument("--log_interval", type=int, default=100, help="how many steps to log")
+    parser.add_argument(
+        "--lora_rank", type=int, default=0, help="low-rank adaptation matrices rank"
+    )
+    parser.add_argument(
+        "--log_interval", type=int, default=100, help="how many steps to log"
+    )
     parser.add_argument("--lr", type=float, default=5e-6)
     parser.add_argument("--accumulation_steps", type=int, default=8)
     parser.add_argument("--enable_peft_lora", action="store_true", default=False)

@@ -1,7 +1,6 @@
 import argparse
 import math
 import warnings
-
 import torch
 import torch.distributed as dist
 from coati.dataset import SFTDataset, SupervisedDataset
@@ -34,6 +33,8 @@ from colossalai.nn.optimizer import HybridAdam
 
 import nvidia_smi
 
+import pdb
+
 
 def print_gpu_memory():
     # Get GPU memory usage info
@@ -50,6 +51,8 @@ def print_gpu_memory():
 
 def train(args):
     # configure strategy
+    logger = get_dist_logger()
+    logger.info(f"Train start")
     if args.strategy == "ddp":
         strategy = DDPStrategy()
     elif args.strategy == "colossalai_gemini":
@@ -152,6 +155,9 @@ def train(args):
         tokenizer.pad_token_id = 0
     else:
         raise ValueError(f'Unsupported model "{args.model}"')
+    pdb.set_trace()
+    for param in model.parameters():
+        print(type(param), param.size())
 
     # configure optimizer
     if args.strategy.startswith("colossalai"):
@@ -255,7 +261,6 @@ def train(args):
         accumulation_steps=args.accumulation_steps,
     )
 
-    logger = get_dist_logger()
     trainer.fit(
         train_dataloader=train_dataloader,
         eval_dataloader=eval_dataloader,
@@ -282,6 +287,7 @@ def train(args):
             "rm_optim_checkpoint_%d.pt" % (torch.cuda.current_device()),
             only_rank0=False,
         )
+    logger.info(f"Train end")
 
 
 if __name__ == "__main__":
@@ -323,6 +329,6 @@ if __name__ == "__main__":
     parser.add_argument("--instruction_str", type=str, default=None)
     parser.add_argument("--input_str", type=str, default=None)
     parser.add_argument("--output_str", type=str, default=None)
-    parser.add_argument("--without_prompt", type=bool, default=False)
+    parser.add_argument("--without_prompt", default=False, action="store_true")
     args = parser.parse_args()
     train(args)

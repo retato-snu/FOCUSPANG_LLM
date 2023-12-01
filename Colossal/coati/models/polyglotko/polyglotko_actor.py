@@ -1,6 +1,7 @@
 from typing import Optional
 import torch
 
+import torch.nn as nn
 
 from transformers.models.gpt_neox.configuration_gpt_neox import GPTNeoXConfig
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXForCausalLM
@@ -8,8 +9,10 @@ from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXForCausalLM
 
 from ..base import Actor
 
+from peft import get_peft_config, get_peft_model, LoraConfig, TaskType
 
-class PolyglotKoActor(Actor):
+
+class PolyglotKoActor(nn.Module):
     """
      polyglot model.
 
@@ -31,7 +34,7 @@ class PolyglotKoActor(Actor):
     ) -> None:
         if pretrained is not None:
             model = GPTNeoXForCausalLM.from_pretrained(
-                pretrained, torch_dtype=torch.bfloat16
+                pretrained, torch_dtype=torch.bfloat16, load_in_8bit=True
             )
         elif config is not None:
             model = GPTNeoXForCausalLM(config)
@@ -39,4 +42,26 @@ class PolyglotKoActor(Actor):
             model = GPTNeoXForCausalLM(GPTNeoXConfig())
         if checkpoint:
             model.gradient_checkpointing_enable()
-        super().__init__(model, lora_rank, lora_train_bias)
+
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=lora_rank,
+            lora_alpha=32,
+            lora_dropout=0.1,
+            bias=lora_train_bias,
+        )
+        super().__init__()
+        self.model = get_peft_model(model, peft_config)
+
+        # super().__init__(model, lora_rank, lora_train_bias)
+
+    def forward(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        **model_kwargs,
+    ) -> torch.Tensor:
+        """Returns model output."""
+        output = self.model(input_ids, attention_mask=attention_mask, **model_kwargs)
+        return output

@@ -31,7 +31,13 @@ class LoraLinear(lora.LoRALayer, nn.Module):
         fan_in_fan_out: bool = False,
     ):
         nn.Module.__init__(self)
-        lora.LoRALayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout, merge_weights=False)
+        lora.LoRALayer.__init__(
+            self,
+            r=r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            merge_weights=False,
+        )
         self.weight = weight
         self.bias = bias
 
@@ -70,8 +76,12 @@ class LoraLinear(lora.LoRALayer, nn.Module):
                 if self.r > 0:
                     if not hasattr(self, "lora_A") or not hasattr(self, "lora_B"):
                         # FIXME(csric): temporary fix
-                        self.lora_A = nn.Parameter(self.weight.new_empty((self.r, self.in_features)))
-                        self.lora_B = nn.Parameter(self.weight.new_empty((self.out_features, self.r)))
+                        self.lora_A = nn.Parameter(
+                            self.weight.new_empty((self.r, self.in_features))
+                        )
+                        self.lora_B = nn.Parameter(
+                            self.weight.new_empty((self.out_features, self.r))
+                        )
                         self.reset_parameters()
                     else:
                         self.weight.data -= T(self.lora_B @ self.lora_A) * self.scaling
@@ -94,7 +104,11 @@ class LoraLinear(lora.LoRALayer, nn.Module):
         if self.r > 0 and not self.merged:
             result = F.linear(x, T(self.weight), bias=self.bias)
             if self.r > 0:
-                result = result + (self.lora_dropout(x) @ self.lora_A.t() @ self.lora_B.t()) * self.scaling
+                result = (
+                    result
+                    + (self.lora_dropout(x) @ self.lora_A.t() @ self.lora_B.t())
+                    * self.scaling
+                )
             return result
         else:
             return F.linear(x, T(self.weight), bias=self.bias)
@@ -116,7 +130,9 @@ def _convert_to_lora_recursively(module: nn.Module, lora_rank: int) -> None:
             _convert_to_lora_recursively(child, lora_rank)
 
 
-def convert_to_lora_module(module: nn.Module, lora_rank: int, lora_train_bias: str = "none") -> nn.Module:
+def convert_to_lora_module(
+    module: nn.Module, lora_rank: int, lora_train_bias: str = "none"
+) -> nn.Module:
     """Convert a torch.nn.Module to a LoRA module.
 
     Args:

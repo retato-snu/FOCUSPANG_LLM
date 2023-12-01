@@ -122,39 +122,50 @@ def train(args):
     if args.dataset == "json":
         if args.data_path is None:
             raise ValueError(f"Need to specify data path for json data")
-        data = jload(args.data_path)
-        if (integer := len(data[0]["ranking"])) <= 1:
-            raise ValueError(
-                f'Unsupported data size: need more than 2 data, but "{str(integer)}"'
-            )
-        entire_data = []
-        for example in data:
-            for first in range(len(example["ranking"]) - 1):
-                for second in range(first + 1, len(example["ranking"])):
-                    each_data = {}
-                    each_data["prompt"] = example["prompt"]
-                    if example["ranking"][first] < example["ranking"][second]:
-                        each_data["chosen"] = example["completion_" + str(first)]
-                        each_data["rejected"] = example["completion_" + str(second)]
-                    else:
-                        each_data["chosen"] = example["completion_" + str(second)]
-                        each_data["rejected"] = example["completion_" + str(first)]
-                    entire_data.append(each_data)
-
-        train_data = entire_data[: int(len(entire_data) * (15 / 16))]
-        eval_data = entire_data[int(len(entire_data) * (15 / 16)) :]
+        raw_data = jload(args.data_path)
+        if args.data_bool:
+            entire_data = []
+            for example in raw_data:
+                each_data = {}
+                each_data["prompt"] = example["instruction"]
+                each_data["chosen"] = example["chosen"]
+                each_data["rejected"] = example["reject"]
+                entire_data.append(each_data)
+            data = entire_data
+        else:
+            if (integer := len(data[0]["ranking"])) <= 1:
+                raise ValueError(
+                    f'Unsupported data size: need more than 2 data, but "{str(integer)}"'
+                )
+            entire_data = []
+            for example in raw_data:
+                for first in range(len(example["ranking"]) - 1):
+                    for second in range(first + 1, len(example["ranking"])):
+                        each_data = {}
+                        each_data["prompt"] = example["prompt"]
+                        if example["ranking"][first] < example["ranking"][second]:
+                            each_data["chosen"] = example["completion_" + str(first)]
+                            each_data["rejected"] = example["completion_" + str(second)]
+                        else:
+                            each_data["chosen"] = example["completion_" + str(second)]
+                            each_data["rejected"] = example["completion_" + str(first)]
+                        entire_data.append(each_data)
+            data = entire_data
     else:
         if args.subset is not None:
             data = load_dataset(args.dataset, data_dir=args.subset)
         else:
             data = load_dataset(args.dataset)
-
+    if args.data_need_test:
         train_data = data["train"].select(
             range(min(args.max_datasets_size, len(data["train"])))
         )
         eval_data = data["test"].select(
             range(min(args.max_datasets_size, len(data["test"])))
         )
+    else:
+        train_data = data[: int(len(entire_data) * (15 / 16))]
+        eval_data = data[int(len(entire_data) * (15 / 16)) :]
 
     if args.dataset == "Dahoas/rm-static":
         train_dataset = RmStaticDataset(train_data, tokenizer, args.max_len)
@@ -267,7 +278,8 @@ if __name__ == "__main__":
         default="Dahoas/rm-static",
     )
     parser.add_argument("--data_path", type=str, default=None)
-    parser.add_argument("--data_bool", type=bool, default=True)
+    parser.add_argument("--data_bool", action="store_false")
+    parser.add_argument("--data_need_test", action="store_false")
     parser.add_argument(
         "--subset", type=lambda x: None if x == "None" else x, default=None
     )

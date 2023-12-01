@@ -1,4 +1,6 @@
 from typing import Optional
+import torch
+
 
 import torch.nn as nn
 from transformers.models.gpt_neox.configuration_gpt_neox import GPTNeoXConfig
@@ -27,7 +29,7 @@ class GptNeoXCritic(Critic):
         **kwargs,
     ) -> None:
         if pretrained is not None:
-            model = GPTNeoXModel.from_pretrained(pretrained)
+            model = GPTNeoXModel.from_pretrained(pretrained, torch_dtype=torch.bfloat16)
         elif config is not None:
             model = GPTNeoXModel(config)
         else:

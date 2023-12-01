@@ -31,7 +31,7 @@ class GptNeoXActor(Actor):
     ) -> None:
         if pretrained is not None:
             model = GPTNeoXForCausalLM.from_pretrained(
-                pretrained, torch_dtype=torch.float16
+                pretrained, torch_dtype=torch.bfloat16
             )
         elif config is not None:
             model = GPTNeoXForCausalLM(config)

@@ -239,6 +239,7 @@ def main(args):
         instruction_str=args.instruction_str,
         input_str=args.input_str,
         output_str=args.output_str,
+        without_prompt=args.without_prompt,
     )
     if dist.is_initialized() and dist.get_world_size() > 1:
         pretrain_sampler = DistributedSampler(
@@ -369,5 +370,6 @@ if __name__ == "__main__":
     parser.add_argument("--input_str", type=str, default=None)
     parser.add_argument("--output_str", type=str, default=None)
     parser.add_argument("--ppo_instruction_str", type=str, default=None)
+    parser.add_argument("--without_prompt", default=False, action="store_true")
     args = parser.parse_args()
     main(args)
