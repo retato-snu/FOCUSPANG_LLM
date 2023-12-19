@@ -18,15 +18,16 @@ set_n_least_used_CUDA_VISIBLE_DEVICES() {
 set_n_least_used_CUDA_VISIBLE_DEVICES 2
 
 torchrun --standalone --nproc_per_node=2 train_reward_model.py \
-    --pretrain '/mnt/hf/korean-gpt-neox-125M' \
+    --pretrain '/mnt/hf/polyglot-ko-1.3b' \
     --model 'gpt-neox' \
     --strategy colossalai_zero2 \
     --loss_fn 'log_exp' \
     --dataset 'json' \
-    --data_path /mnt/ColossalAI/applications/Chat/examples/KoChatGPT/data_kochatgpt/kochatgpt_2_RM.jsonl \
+    --data_path /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/rm_dataset/rm_dataset.json \
     --batch_size 4 \
     --max_epochs 1 \
-    --save_path output/korean-gpt-neox-125M-rm \
+    --save_path model_output/1218_rm \
     --data_bool False \
+    --use_wandb \
     # --dataset 'Anthropic/hh-rlhf' \
 

@@ -211,15 +211,16 @@ class SupervisedDataset(Dataset):
 
         logger.info("Formatting inputs...")
         sources = []
+        if instruction_str is not None:
+            for example in list_data_dict:
+                example["instruction"] = example.pop(instruction_str)
+        if input_str is not None:
+            for example in list_data_dict:
+                example["input"] = example.pop(input_str)
+        
         if without_prompt:
-            sources = [example["input"] for example in list_data_dict]
+            sources = [example["instruction"] for example in list_data_dict]
         else:
-            if instruction_str is not None:
-                for example in list_data_dict:
-                    example["instruction"] = example.pop(instruction_str)
-            if input_str is not None:
-                for example in list_data_dict:
-                    example["input"] = example.pop(input_str)
             prompt_input, prompt_no_input = (
                 PROMPT_DICT[language]["prompt_input"],
                 PROMPT_DICT[language]["prompt_no_input"],
