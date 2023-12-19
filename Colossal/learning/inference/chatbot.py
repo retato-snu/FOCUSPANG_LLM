@@ -18,7 +18,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--path",
                         type=str,
-                        default='/mnt/FOCUSPANG_LLM/Colossal/learning/model_output/1215',
+                        default='/mnt/FOCUSPANG_LLM/Colossal/learning/model_output/1219/sft_ver2',
                         help="Directory containing trained actor model")
     parser.add_argument(
         "--max_new_tokens",
@@ -105,7 +105,7 @@ def get_generator(path):
 
 def get_user_input(user_input):
     tmp = input("Enter input (type 'quit' to exit, 'clear' to clean memory): ")
-    new_inputs = f"Human: {tmp}\n Assistant: "
+    new_inputs = f"아래는 작업을 설명하는 명령어와 추가적 맥락을 제공하는 입력이 짝을 이루는 예제입니다.\n\n 요청을 적절히 완료하는 응답을 작성하세요.\n\n### 명령어:\n{tmp}\n\n### 입력:\n\n\n### 응답:"
     user_input += f" {new_inputs}"
     return user_input, tmp == "quit", tmp == "clear"
 
