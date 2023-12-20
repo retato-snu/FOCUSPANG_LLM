@@ -20,18 +20,18 @@ set_n_least_used_CUDA_VISIBLE_DEVICES() {
 set_n_least_used_CUDA_VISIBLE_DEVICES 2
 
 torchrun --standalone --nproc_per_node=2 train_sft.py \
-    --pretrain "/mnt/hf/polyglot-ko-5.8b" \
+    --pretrain "polyglot-ko-5.8b" \
     --model 'polyglotko' \
     --strategy colossalai_zero2_cpu \
-    --save_path output/polyglot-ko-5.8b-rdata \
-    --dataset /mnt/ColossalAI/applications/Chat/examples/data/rdata/dataset_source_231009_created_231009/line_human-touched.json \
+    --save_path model_output/1215 \
+    --dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/OpenData/data_kochatgpt/kochatgpt_1_SFT.jsonl \
     --batch_size 4 \
     --accumulation_steps 8 \
     --lr 2e-5 \
-    --max_epochs 5 \
+    --max_epochs 12 \
     --lora_rank 8 \
     --language 'ko' \
-    --without_prompt true \
+    --use_wandb \
 
 
 EndTime=$(date +%s)
