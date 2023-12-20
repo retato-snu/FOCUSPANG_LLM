@@ -268,9 +268,10 @@ def train(args):
         model.eval()
     # save model checkpoint after fitting on only rank0
     strategy.save_model(model, path=args.save_path, only_rank0=True)
-    strategy.save_pretrained(
-        model, path=args.save_path_folder, only_rank0=True, tokenizer=tokenizer
-    )
+    if args.save_path folder is not None:
+        strategy.save_pretrained(
+            model, path=args.save_path_folder, only_rank0=True, tokenizer=tokenizer
+        )
     # save optimizer checkpoint on all ranks
     if args.need_optim_ckpt:
         strategy.save_optimizer(
@@ -309,7 +310,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--max_datasets_size", type=int, default=1000000)
     parser.add_argument("--save_path", type=str, default="rm_ckpt")
-    parser.add_argument("--save_path_folder", type=str, default='model_output/ppo')
+    parser.add_argument("--save_path_folder", type=str, default=None)
 
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=1)
