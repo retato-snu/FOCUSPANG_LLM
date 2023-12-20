@@ -30,6 +30,34 @@ from colossalai.nn.optimizer import HybridAdam
 from coati.dataset.utils import jload
 
 
+PROMPT_DICT = {
+    "en": {
+        "prompt_input": (
+            "Below is an instruction that describes a task, paired with an input that provides further context. "
+            "Write a response that appropriately completes the request.\n\n"
+            "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
+        ),
+        "prompt_no_input": (
+            "Below is an instruction that describes a task. "
+            "Write a response that appropriately completes the request.\n\n"
+            "### Instruction:\n{instruction}\n\n### Response:"
+        ),
+    },
+    "ko": {
+        "prompt_input": (
+            "아래는 작업을 설명하는 명령어와 추가적 맥락을 제공하는 입력이 짝을 이루는 예제입니다.\n\n"
+            "요청을 적절히 완료하는 응답을 작성하세요.\n\n"
+            "### 명령어:\n{instruction}\n\n### 입력:\n{input}\n\n### 응답:"
+        ),
+        "prompt_no_input": (
+            "아래는 작업을 설명하는 명령어입니다.\n\n"
+            "명령어에 따른 요청을 적절히 완료하는 응답을 작성하세요.\n\n"
+            "### 명령어:\n{instruction}\n\n### 응답:"
+        ),
+    },
+}
+
+
 def train(args):
     # configure strategy
     if args.strategy == "ddp":
@@ -119,6 +147,7 @@ def train(args):
         raise ValueError(f'Unsupported loss function "{args.loss_fn}"')
 
     # prepare for data and dataset
+    
     if args.dataset == "json":
         if args.data_path is None:
             raise ValueError(f"Need to specify data path for json data")
@@ -132,7 +161,11 @@ def train(args):
             for first in range(len(example["ranking"]) - 1):
                 for second in range(first + 1, len(example["ranking"])):
                     each_data = {}
-                    each_data["prompt"] = example["prompt"]
+                    if args.without_prompt : each_data["prompt"] = example["prompt"]
+                    else : 
+                        prompt_no_input = PROMPT_DICT['ko']['prompt_no_input']
+                        each_data["prompt"] = prompt_no_input.format(example["prompt"])
+                    
                     if example["ranking"][first] < example["ranking"][second]:
                         each_data["chosen"] = example["completion_" + str(first)]
                         each_data["rejected"] = example["completion_" + str(second)]
@@ -235,6 +268,9 @@ def train(args):
         model.eval()
     # save model checkpoint after fitting on only rank0
     strategy.save_model(model, path=args.save_path, only_rank0=True)
+    strategy.save_pretrained(
+        model, path=args.save_path_folder, only_rank0=True, tokenizer=tokenizer
+    )
     # save optimizer checkpoint on all ranks
     if args.need_optim_ckpt:
         strategy.save_optimizer(
@@ -273,6 +309,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--max_datasets_size", type=int, default=1000000)
     parser.add_argument("--save_path", type=str, default="rm_ckpt")
+    parser.add_argument("--save_path_folder", type=str, default='model_output/ppo')
+
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--max_len", type=int, default=512)
@@ -286,5 +324,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--log_dir", default="logs", type=str)
     parser.add_argument("--use_wandb", default=False, action="store_true")
+    parser.add_argument("--without_prompt", action="store_true", default=False)
     args = parser.parse_args()
     train(args)
