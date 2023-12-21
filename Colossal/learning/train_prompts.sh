@@ -21,20 +21,19 @@ set_n_least_used_CUDA_VISIBLE_DEVICES 2
 
 torchrun --standalone --nproc_per_node=2 train_prompts.py \
     --model polyglotko \
-    --pretrain output/polyglot-ko-5.8b-focuspang-wandb-log-test \
-    --pretrain_dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/dataset_source_231009_created_231009/line_human-touched.json \
-    --prompt_dataset /mnt/FOCUSPANG_LLM/Colossal/learning/data/prompt.json \
+    --pretrain model_output/1220_sft3 \
+    --pretrain_dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/sft_dataset/sft_dataset1.json  \
+    --prompt_dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/ppo_dataset/ppo_dataset.json \
     --strategy colossalai_zero2 \
     --rm_model gpt-neox \
-    --rm_pretrain "/mnt/hf/korean-gpt-neox-125M" \
-    --rm_path model_output/korean-gpt-neox-125M-rm-rdata \
-    --num_episodes 1 --num_collect_steps 2 --num_update_steps 1 \
+    --rm_pretrain "/mnt/hf/polyglot-ko-1.3b" \
+    --rm_path model_output/1218_rm2 \
+    --num_episodes 100 --num_collect_steps 2 --num_update_steps 1 \
     --train_batch_size 4 \
-    --save_path model_output/ppo_polyglotko-5.8b-125-focus \
+    --save_path model_output/1220_ppo3 \
     --lora_rank 8 \
     --language 'ko' \
     --instruction_str "instruction"\
     --output_str "output" \
-    --ppo_instruction_str "instruction" \
-    --without_prompt \
-    --use_wandb
+    --ppo_instruction_str "prompt" \
+    --use_wandb \

@@ -27,6 +27,10 @@ def request_gpt(message):
             print("rate limit/waiting")
             time.sleep(10)
             continue
+        except openai.error.APIError as e:
+            print("502")
+            time.sleep(10)
+            continue
     return response
 
 def find_2nd(string, substring):
@@ -67,7 +71,12 @@ def generate_is(n):
             idx2 = find_2nd(response, "```")
             res = ins.replace(get_data(ins),response[idx1:idx2+3]+"\n")
             r_data = {
-                "prompt": res
+                "instruction": res,
+                "input": "",
+                "output": data["output"],
+                "target": data["target"],
+                "category": data["category"],
+                "log_id": data["log_id"]
             }
             print(res)
             result_data.append(r_data)
@@ -88,7 +97,12 @@ def generate_ic(n):
             idx2 = find_2nd(response, "```")
             res = ins.replace(get_data(ins),response[idx1:idx2+3]+"\n")
             r_data = {
-                "prompt": res
+                "instruction": res,
+                "input": "",
+                "output": data["output"],
+                "target": data["target"],
+                "category": data["category"],
+                "log_id": data["log_id"]
             }
             print(res)
             result_data.append(r_data)

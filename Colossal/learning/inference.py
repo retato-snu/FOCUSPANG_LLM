@@ -29,6 +29,8 @@ PROMPT_KOREA = {
     ),
 }
 
+def read_input(input_path):
+    
 
 def eval(args):
     # configure model
@@ -68,13 +70,14 @@ def eval(args):
         tokenizer.pad_token = tokenizer.unk_token
     elif args.model == "polyglotko":
         tokenizer = PreTrainedTokenizerFast.from_pretrained(
-            "EleutherAI/polyglot-ko-12.8b", add_eos_token=True
+            "EleutherAI/polyglot-ko-5.8b", add_eos_token=True
         )
         tokenizer.pad_token = tokenizer.eos_token
     else:
         raise ValueError(f'Unsupported model "{args.model}"')
 
     actor.eval()
+    
     tokenizer.padding_side = "left"
 
     if args.keep_going:
@@ -132,6 +135,9 @@ if __name__ == "__main__":
     # We suggest to use the pretrained model from HuggingFace, use pretrain to configure model
     parser.add_argument("--pretrain", type=str, default=None)
     parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--input_path", type=str, default=None)
+    parser.add_argument("--output_path", type=str, default="output.csv")
+    
     parser.add_argument("--input", type=str, default="Question: How are you ? Answer:")
     parser.add_argument("--max_length", type=int, default=1000)
     parser.add_argument("--keep_going", type=bool, default=False)

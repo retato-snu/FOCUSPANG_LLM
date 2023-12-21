@@ -18,15 +18,17 @@ set_n_least_used_CUDA_VISIBLE_DEVICES() {
 set_n_least_used_CUDA_VISIBLE_DEVICES 2
 
 torchrun --standalone --nproc_per_node=2 train_reward_model.py \
-    --pretrain '/mnt/hf/korean-gpt-neox-125M' \
-    --model 'gpt-neox' \
+    --pretrain '/mnt/hf/polyglot-ko-1.3b' \
+    --model 'polyglotko' \
     --strategy colossalai_zero2 \
-    --loss_fn 'log_exp' \
+    --loss_fn 'log_sig' \
     --dataset 'json' \
-    --data_path /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/dataset_grade_231009.json \
+    --data_path /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/rm_dataset/rm_dataset.json \
     --batch_size 4 \
-    --max_epochs 1 \
-    --save_path model_output/korean-gpt-neox-125M-rm-rdata \
-    --data_has_test \
-    # --data_bool \
+    --max_epochs 12 \
+    --save_path model_output/1220_rm2 \
+    --data_bool False \
+    --use_wandb \
+    --without_prompt \
+    # --dataset 'Anthropic/hh-rlhf' \
 

@@ -293,7 +293,6 @@ def train(args):
         log_dir=args.log_dir,
         use_wandb=args.use_wandb,
     )
-    print_gpu_memory()
 
     if args.lora_rank > 0 and args.merge_lora_weights:
         from coati.models.lora import LORA_MANAGER
@@ -354,6 +353,6 @@ if __name__ == "__main__":
     parser.add_argument("--instruction_str", type=str, default=None)
     parser.add_argument("--input_str", type=str, default=None)
     parser.add_argument("--output_str", type=str, default=None)
-    parser.add_argument("--without_prompt", default=False, action="store_true")
+    parser.add_argument("--without_prompt", action="store_true", default=False)
     args = parser.parse_args()
     train(args)
