@@ -72,7 +72,7 @@ This will be saved cache, so clone model and use local file is recommended.
 
 ### 4. Additional dependency for learning with 8bit (Additional Option)
 
-If you want to learn with 8bit for limit of GPU memory, use this version: [loadin8bit](tree/colossal_load8bit).
+If you want to learn with 8bit for limit of GPU memory, use this version: [Quantization learning version](https://github.com/retato-snu/FOCUSPANG_LLM/tree/colossal_load8bit).
 
 You need to additional dependency for this.
 
