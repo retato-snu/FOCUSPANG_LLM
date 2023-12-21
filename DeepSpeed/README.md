@@ -7,13 +7,12 @@ Implement code list during Creative Integrated Design:
 This is part of learning.
 
 - [train_sft.py](train_sft.py)
+- [train_sft_deepspeed.py](train_sft_deepspeed.py)
 - [train_rm.py](train_rm.py)
 - [train_ppo.py](train_ppo.py)
 - [data_utils.py](utils/data_utils.py)
 - [model_utils.py](model/model_utils.py)
 - [ds_config_zero3.json](ds_config_zero3.json)
-
-You can train the model with just one script.(You should edit the data file path to your dataset)
 - [train_rubis.sh](train_rubis.sh)
 
 
