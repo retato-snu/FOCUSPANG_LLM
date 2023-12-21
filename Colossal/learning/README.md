@@ -1,114 +1,26 @@
-# Examples
-
-## Table of Contents
-
-- [Examples](#examples)
-  - [Table of Contents](#table-of-contents)
-  - [Install requirements](#install-requirements)
-  - [Supervised datasets collection](#supervised-datasets-collection)
-    - [Conversation dataset generation](#conversation-dataset-generation)
-  - [Stage1 - Supervised instructs tuning](#stage1---supervised-instructs-tuning)
-    - [Arg List](#arg-list)
-  - [Stage2 - Training reward model](#stage2---training-reward-model)
-    - [Features and tricks in RM training](#features-and-tricks-in-rm-training)
-    - [Experiment result](#experiment-result)
-    - [Arg List](#arg-list-1)
-  - [Stage3 - Training model using prompts with RL](#stage3---training-model-using-prompts-with-rl)
-    - [Arg List](#arg-list-2)
-  - [Inference example - After Stage3](#inference-example---after-stage3)
-  - [Attention](#attention)
-    - [data](#data)
-  - [Support Model](#support-model)
-    - [GPT](#gpt)
-    - [BLOOM](#bloom)
-    - [OPT](#opt)
-    - [LLaMA](#llama)
-  - [Add your own models](#add-your-own-models)
-    - [Actor model](#actor-model)
-    - [Reward model](#reward-model)
-    - [Critic model](#critic-model)
-
----
-
-## Install requirements
-
-```shell
-pip install -r requirements.txt
-```
-
-## Supervised datasets collection
-
-We collected 104K bilingual datasets of Chinese and English, and you can find the datasets in this repo
-[InstructionWild](https://github.com/XueFuzhao/InstructionWild) and in this [file](https://github.com/XueFuzhao/InstructionWild/blob/main/data/README.md).
-
-
-### Conversation dataset generation
-
-In order to further improve the model's ability to handle multi-turn conversations, we need to include samples with multi-turn conversations in the dataset. However, the samples in InstructWild and Alpaca datasets currently consist of only single-turn conversations, and their dataset organization is not suitable for storing multi-turn conversations. Additionally, after converting the aforementioned datasets, we also need to include multi-turn conversation datasets like ShareGPT, and we should transform them into the training format supported by ColossalChat.
-
-A sample of conversation dataset should have the following fields:
-
-- `type` (str, optional): The type of the data sample.
-- `language` (str, optional): The language of the data sample.
-- `dataset` (str, optional): The dataset the data sample originates from.
-- `conversations` (str, compulsory): Conversation content of the data sample.
-- `id` (int, optional): The ID of the data sample.
-
-A simple example:
-
-```json
-{
-  "type": "instruction",
-  "language": "English",
-  "dataset": "Alpaca",
-  "conversations": [
-    {
-      "from": "human",
-      "value": "Give three tips for staying healthy."
-    },
-    {
-      "from": "gpt",
-      "value": "1.Eat a balanced diet and make sure to include plenty of fruits and vegetables. \n2. Exercise regularly to keep your body active and strong. \n3. Get enough sleep and maintain a consistent sleep schedule."
-    }
-  ],
-  "id": 1
-}
-```
-
-> **NOTE:** Only key `conversations` is compulsary for training and other keys serve as metadata. The length of `conversations` varies.
-
-You can run the `examples/generate_conversation_dataset.py` to generate a conversation dataset supported by ColossalChat.
-
-You can use the following cmd to generate conversation dataset.
-
-```bash
-python generate_conversation_dataset.py \
-    --dataset "All"
-    --save_path "/path/to/dataset"
-```
+# Learning
 
 ## Stage1 - Supervised instructs tuning
 
 Stage1 is supervised instructs fine-tuning, which uses the datasets mentioned earlier to fine-tune the model.
-[[Stage1 tutorial video]](https://www.youtube.com/watch?v=-qFBZFmOJfg)
 
-You can run the `examples/train_sft.sh` to start a supervised instructs fine-tuning.
+You can run the `train_sft.sh` to start a supervised instructs fine-tuning.
 
 You can also use the following cmd to start a supervised instructs fine-tuning with your own settings.
 
 ```bash
-torchrun --standalone --nproc_per_node=4 train_sft.py \
-    --pretrain "/path/to/LLaMa-7B/" \
-    --model 'llama' \
-    --strategy colossalai_zero2 \
-    --save_path  /path/to/Coati-7B \
-    --dataset /path/to/data.json \
+torchrun --standalone --nproc_per_node=2 train_sft.py \
+    --pretrain "/mnt/hf/polyglot-ko-5.8b" \
+    --model 'polyglotko' \
+    --strategy colossalai_zero2_cpu \
+    --save_path model_output/1215 \
+    --dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/OpenData/data_kochatgpt/kochatgpt_1_SFT.jsonl \
     --batch_size 4 \
     --accumulation_steps 8 \
     --lr 2e-5 \
-    --max_datasets_size 512 \
-    --max_epochs 1 \
-    --grad_checkpoint
+    --max_epochs 12 \
+    --lora_rank 8 \
+    --language 'ko'
 ```
 
 **Note**: the supervised dataset follows the following format,
@@ -125,6 +37,9 @@ torchrun --standalone --nproc_per_node=4 train_sft.py \
 ]
 ```
 
+You can use data whose name of labels are different with example.
+This is reason why parameter input_str, output_str,and instruction_str exist.
+
 ### Arg List
 
 - `--strategy`: the strategy using for training, choices=['ddp', 'colossalai_gemini', 'colossalai_zero2'], default='colossalai_zero2'
@@ -136,14 +51,17 @@ torchrun --standalone --nproc_per_node=4 train_sft.py \
 - `--max_epochs`: max epochs for training, type=int, default=3
 - `--batch_size`: batch size while training, type=int, default=4
 - `--lora_rank`: low-rank adaptation matrices rank, type=int, default=0
-- `--grad_checkpoint`: enable gradient checkpointing, type=bool, default=False
+- `--input_str`: label name which will change to input
+- `--instruction_str`: label name which will change to instruction
+- `--output_str`: label name which will change to output
+- `--language`: targt language, choices=['ko', 'en']
+- `--without_prompt`: learning without prompt. This is for data that has already got prompt engineering.
 
 ## Stage2 - Training reward model
 
 We train a reward model in stage 2, which obtains corresponding scores by manually ranking different outputs for the same prompt and supervises the training of the reward model.
-[[Stage2 tutorial video]](https://www.youtube.com/watch?v=gMx2CApKhuo)
 
-You can run the `examples/train_rm.sh` to start a reward model training.
+You can run the `train_rm.sh` to start a reward model training.
 
 You can also use the following cmd to start training a reward model.
 
@@ -181,10 +99,12 @@ torchrun --standalone --nproc_per_node=4 train_reward_model.py \
 - `--lora_rank`: low-rank adaptation matrices rank, type=int, default=0
 - `--loss_func`: which kind of loss function, choices=['log_sig', 'log_exp']
 - `--max_len`: max sentence length for generation, type=int, default=512
+- `--without_prompt`: learning without prompt. This is for data that has already got prompt engineering.
 
 ## Stage3 - Training model using prompts with RL
 
 Stage3 uses reinforcement learning algorithm, which is the most complex part of the training process
+
 ```bash
 torchrun --standalone --nproc_per_node=4 train_prompts.py \
     --pretrain "/path/to/LLaMa-7B/" \
@@ -252,11 +172,8 @@ Pretrain dataset: the pretrain dataset including the instruction and correspondi
 - `--lora_rank`: low-rank adaptation matrices rank, type=int, default=0
 - `--kl_coef`: kl_coef using for computing reward, type=float, default=0.1
 - `--ptx_coef`: ptx_coef using for computing policy loss, type=float, default=0.9
-
-## Inference example - After Stage3
-
-We support different inference options, including int8 and int4 quantization.
-For details, see [`inference/`](https://github.com/hpcaitech/ColossalAI/tree/main/applications/Chat/inference).
+- `--language`: targt language, choices=['ko', 'en']
+- `--(label)_str`: for different name of label
 
 ## Attention
 
@@ -307,80 +224,6 @@ The examples are demos for the whole training process.You need to change the hyp
 - [ ] LLaMA-65B
 
 ### For Focuspang
-- [GptNeoX](https://huggingface.co/EleutherAI/gpt-neox-20b)
-- [Polyglot-Ko](https://huggingface.co/EleutherAI/polyglot-ko-12.8b)
 
-## Add your own models
-
-If you want to support your own model in Coati, please refer the pull request for RoBERTa support as an example --[[chatgpt] add pre-trained model RoBERTa for RLHF stage 2 & 3](https://github.com/hpcaitech/ColossalAI/pull/3223), and submit a PR to us.
-
-You should complete the implementation of four model classes, including Reward model, Critic model, LM model, Actor model
-
-here are some example code for a NewModel named `Coati`.
-if it is supported in huggingface [transformers](https://github.com/huggingface/transformers), you can load it by `from_pretrained`, o
-r you can build your own model by yourself.
-
-### Actor model
-
-```python
-from ..base import Actor
-from transformers.models.coati import CoatiModel
-
-class CoatiActor(Actor):
-    def __init__(self,
-                 pretrained: Optional[str] = None,
-                 checkpoint: bool = False,
-                 lora_rank: int = 0,
-                 lora_train_bias: str = 'none') -> None:
-        if pretrained is not None:
-            model = CoatiModel.from_pretrained(pretrained)
-        else:
-            model = build_model() # load your own model if it is not support in transformers
-
-        super().__init__(model, lora_rank, lora_train_bias)
-```
-
-### Reward model
-
-```python
-from ..base import RewardModel
-from transformers.models.coati import CoatiModel
-
-class CoatiRM(RewardModel):
-
-    def __init__(self,
-                 pretrained: Optional[str] = None,
-                 checkpoint: bool = False,
-                 lora_rank: int = 0,
-                 lora_train_bias: str = 'none') -> None:
-        if pretrained is not None:
-            model = CoatiModel.from_pretrained(pretrained)
-        else:
-            model = build_model() # load your own model if it is not support in transformers
-
-        value_head = nn.Linear(model.config.n_embd, 1)
-        value_head.weight.data.normal_(mean=0.0, std=1 / (model.config.n_embd + 1))
-        super().__init__(model, value_head, lora_rank, lora_train_bias)
-```
-
-### Critic model
-
-```python
-from ..base import Critic
-from transformers.models.coati import CoatiModel
-
-class CoatiCritic(Critic):
-    def __init__(self,
-                 pretrained: Optional[str] = None,
-                 checkpoint: bool = False,
-                 lora_rank: int = 0,
-                 lora_train_bias: str = 'none') -> None:
-        if pretrained is not None:
-            model = CoatiModel.from_pretrained(pretrained)
-        else:
-            model = build_model() # load your own model if it is not support in transformers
-
-        value_head = nn.Linear(model.config.n_embd, 1)
-        value_head.weight.data.normal_(mean=0.0, std=1 / (model.config.n_embd + 1))
-        super().__init__(model, value_head, lora_rank, lora_train_bias)
-```
+- [x] [GptNeoX](https://huggingface.co/EleutherAI/gpt-neox-20b)
+- [x] [Polyglot-Ko](https://huggingface.co/EleutherAI/polyglot-ko-12.8b)

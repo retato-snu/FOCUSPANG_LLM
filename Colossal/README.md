@@ -1,8 +1,38 @@
-# ColossalAI 
+# ColossalAI
 
 ## Training
 
-## Inference
+Implement code list during Creative Integrated Design:
+
+This is part of learning without quantization.
+
+### Without quantization
+
+- coati/models/gptNeoX
+- coati/models/polyglotko
+- learning/train_sft.py:
+- coati/dataset/sft_dataset.py:
+- learning/train_reward_model.py:
+- learning/train_prompts.py:
+
+### With quantization
+
+This part is additional change for support learning with quantization model.
+This is not official feature in Colossal, implemented personally.
+Learning may be instability.
+
+Those are codes different without quantization.
+
+- learning/train_sft.py
+- learning/train_prompts.py
+- coati/models/polyglotko
+
+Thos are codes in library.
+
+- colossalai/zero/low_level/low_level_optim.py
+- peft/tuners/lora.py
+
+You can find more details in [8bit_learning](https://github.com/retato-snu/FOCUSPANG_LLM/blob/colossal_load8bit/Colossal/learning/8bit_learning.md)
 
 ## Authors
 
@@ -16,9 +46,9 @@ Coati is developed by ColossalAI Team:
 - [Wenhao Chen](https://github.com/CWHer)
 
 The PhD student from [(HPC-AI) Lab](https://ai.comp.nus.edu.sg/) also contributed a lot to this project.
+
 - [Zangwei Zheng](https://github.com/zhengzangw)
 - [Xue Fuzhao](https://github.com/XueFuzhao)
-
 
 Modified coati
 
