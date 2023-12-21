@@ -15,6 +15,7 @@ from transformers import (
     GPTNeoXTokenizerFast,
     PreTrainedTokenizerFast,
 )
+import pandas as pd
 
 PROMPT_KOREA = {
     "prompt_input": (
@@ -30,7 +31,17 @@ PROMPT_KOREA = {
 }
 
 def read_input(input_path):
+    if input_path is None:
+        raise ValueError(f"Need to specify input csv path for json data")
+    data = jload(args.data_path)
     
+    # data는 하나일 것이라고 가정한다.
+    for inputs in data:
+        tmp = inputs["prompt"]
+        new_inputs = PROMPT_KOREA["prompt_no_input"].format_map(
+                        {"instruction": tmp}
+                    )
+    return new_inputs
 
 def eval(args):
     # configure model
@@ -80,49 +91,55 @@ def eval(args):
     
     tokenizer.padding_side = "left"
 
-    if args.keep_going:
-        while True:
-            try:
-                input_str = input("Input: ")
-                input_prompt = PROMPT_KOREA["prompt_no_input"].format_map(
-                    {"instruction": input_str}
-                )
-            except EOFError:
-                print("Bye!")
-                break
-            input_ids = tokenizer.encode(input_prompt, return_tensors="pt").to(
-                torch.cuda.current_device()
-            )
-            outputs = generate(
-                actor,
-                input_ids,
-                tokenizer=tokenizer,
-                max_length=args.max_length,
-                do_sample=True,
-                top_k=50,
-                top_p=0.95,
-                num_return_sequences=1,
-            )
-            output = tokenizer.batch_decode(outputs[0], skip_special_tokens=True)
-            print(f"[Output]: {''.join(output)}")
+    input_datas= []
+    output_datas = []
+    data = {}
+    # if args.keep_going:
+    #     while True:
+    #         try:
+    #             input_prompt = read_input(args.input_path)
+    #         except EOFError:
+    #             print("Bye!")
+    #             break
+    #         input_ids = tokenizer.encode(input_prompt, return_tensors="pt").to(
+    #             torch.cuda.current_device()
+    #         )
+    #         outputs = generate(
+    #             actor,
+    #             input_ids,
+    #             tokenizer=tokenizer,
+    #             max_length=args.max_length,
+    #             do_sample=True,
+    #             top_k=50,
+    #             top_p=0.95,
+    #             num_return_sequences=1,
+    #         )
+    #         output_datas.append(tokenizer.batch_decode(outputs[0], skip_special_tokens=True))
+    #         data['output'] = output_datas
+    #         df = pd.DataFrame(data)
+    #         df.to_csv(args.output_path, index=False)
+    #         print(f"[Output]: {''.join(output)}")
+    # else:
 
-    else:
-        input_ids = tokenizer.encode(args.input, return_tensors="pt").to(
-            torch.cuda.current_device()
-        )
-        outputs = generate(
-            actor,
-            input_ids,
-            tokenizer=tokenizer,
-            max_length=args.max_length,
-            do_sample=True,
-            top_k=30,
-            top_p=0.95,
-            num_return_sequences=1,
-            early_stopping=args.early_stopping,
-        )
-        output = tokenizer.batch_decode(outputs[0], skip_special_tokens=True)
-        print(f"[Output]: {''.join(output)}")
+    input_prompt = read_input(args.input_path)
+    input_ids = tokenizer.encode(input_prompt, return_tensors="pt").to(
+        torch.cuda.current_device()
+    )
+    outputs = generate(
+        actor,
+        input_ids,
+        tokenizer=tokenizer,
+        max_length=args.max_length,
+        do_sample=True,
+        top_k=30,
+        top_p=0.95,
+        num_return_sequences=1,
+        early_stopping=args.early_stopping,
+    )
+    data['output'] = tokenizer.batch_decode(outputs[0], skip_special_tokens=True)
+    df = pd.DataFrame(data)
+    df.to_csv(args.output_path, index=False)
+    print(f"[Output]: {''.join(output)}")
 
 
 if __name__ == "__main__":

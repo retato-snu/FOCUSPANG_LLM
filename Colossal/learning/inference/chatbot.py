@@ -18,7 +18,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--path",
                         type=str,
-                        default='/mnt/FOCUSPANG_LLM/Colossal/learning/model_output/1219/sft_ver2',
+                        default='/mnt/FOCUSPANG_LLM/Colossal/learning/model_output/1220_sft3',
                         help="Directory containing trained actor model")
     parser.add_argument(
         "--max_new_tokens",
