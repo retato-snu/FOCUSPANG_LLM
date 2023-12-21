@@ -8,12 +8,13 @@ This is part of learning without quantization.
 
 ### Without quantization
 
-- coati/models/gptNeoX
-- coati/models/polyglotko
-- learning/train_sft.py:
-- coati/dataset/sft_dataset.py:
-- learning/train_reward_model.py:
-- learning/train_prompts.py:
+- [gptNeoX](coati/models/gptNeoX)
+- [polyglot-ko](coati/models/polyglotko)
+- [train_sft.py](learning/train_sft.py)
+- [sft_dataset.py](coati/dataset/sft_dataset.py)
+- [train_reward_model.py](learning/train_reward_model.py)
+- [train_prompts.py](learning/train_prompts.py)
+- [inference.py](learning/inference.py)
 
 ### With quantization
 
@@ -23,9 +24,10 @@ Learning may be instability.
 
 Those are codes different without quantization.
 
-- learning/train_sft.py
-- learning/train_prompts.py
-- coati/models/polyglotko
+- [train_sft.py](learning/train_sft.py)
+- [train_prompts.py](learning/train_prompts.py)
+- [polyglotko](coati/models/polyglotko)
+- [ddp.py](coati/trainer/strategies/ddp.py)
 
 Thos are codes in library.
 
