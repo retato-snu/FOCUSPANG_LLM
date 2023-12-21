@@ -33,7 +33,22 @@ from colossalai.nn.optimizer import HybridAdam
 
 import nvidia_smi
 
+from types import FrameType, TracebackType
+
 import pdb
+import sys
+
+
+class ForkedPdb(pdb.Pdb):
+    def interaction(
+        self, frame: FrameType | None, traceback: TracebackType | None
+    ) -> None:
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open("/dev/stdin")
+            super().interaction(frame, traceback)
+        finally:
+            sys.stdin = _stdin
 
 
 def print_gpu_memory():
@@ -111,7 +126,7 @@ def train(args):
         else:
             raise ValueError(f'Unsupported model "{args.model}"')
 
-        model.to(torch.bfloat16).to(torch.cuda.current_device())
+        model.to(torch.float16).to(torch.cuda.current_device())
         print_gpu_memory()
 
     # configure tokenizer
@@ -155,15 +170,23 @@ def train(args):
         tokenizer.pad_token_id = 0
     else:
         raise ValueError(f'Unsupported model "{args.model}"')
-    pdb.set_trace()
-    for param in model.parameters():
-        print(type(param), param.size())
 
-    # configure optimizer
     if args.strategy.startswith("colossalai"):
         optim = HybridAdam(model.parameters(), lr=args.lr, clipping_norm=1.0)
     else:
         optim = Adam(model.parameters(), lr=args.lr)
+    if hasattr(model, "is_loaded_in_8bit") or (
+        hasattr(model, "model") and hasattr(model.model, "is_loaded_in_8bit")
+    ):
+        import bitsandbytes
+
+        logger.info("Using AdamW8bit")
+        # ForkedPdb().set_trace()
+        # optim = Adam(model.parameters(), fused=True, lr=args.lr)
+        optim = HybridAdam(model.parameters(), lr=args.lr, clipping_norm=1.0)
+
+        # optim = bitsandbytes.optim.AdamW8bit(model.parameters(), lr=args.lr)
+
     # configure dataset
     if args.dataset == "yizhongw/self_instruct":
         train_data = load_dataset(
@@ -246,6 +269,8 @@ def train(args):
         num_warmup_steps=math.ceil(max_steps * 0.03),
         num_training_steps=max_steps,
     )
+    # ForkedPdb().set_trace()
+
     strategy_dict = strategy.prepare(
         dict(model=model, optimizer=optim, lr_scheduler=lr_scheduler)
     )

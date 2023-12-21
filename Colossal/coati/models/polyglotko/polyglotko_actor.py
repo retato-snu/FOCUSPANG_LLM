@@ -9,10 +9,18 @@ from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXForCausalLM
 
 from ..base import Actor
 
-from peft import get_peft_config, get_peft_model, LoraConfig, TaskType
+from peft import (
+    get_peft_config,
+    get_peft_model,
+    LoraConfig,
+    TaskType,
+    prepare_model_for_int8_training,
+    get_peft_model_state_dict,
+    set_peft_model_state_dict,
+)
 
 
-class PolyglotKoActor(nn.Module):
+class PolyglotKoActor(Actor, nn.Module):
     """
      polyglot model.
 
@@ -34,12 +42,12 @@ class PolyglotKoActor(nn.Module):
     ) -> None:
         if pretrained is not None:
             model = GPTNeoXForCausalLM.from_pretrained(
-                pretrained, torch_dtype=torch.bfloat16, load_in_8bit=True
+                pretrained, torch_dtype=torch.float16, load_in_8bit=True
             )
         elif config is not None:
             model = GPTNeoXForCausalLM(config)
         else:
-            model = GPTNeoXForCausalLM(GPTNeoXConfig())
+            model = GPTNeoXForCausalLM(GPTNeoXConfig(use_cache=False))
         if checkpoint:
             model.gradient_checkpointing_enable()
 
@@ -52,8 +60,15 @@ class PolyglotKoActor(nn.Module):
             bias=lora_train_bias,
         )
         super().__init__()
-        self.model = get_peft_model(model, peft_config)
+        self.model = prepare_model_for_int8_training(
+            model, use_gradient_checkpointing=checkpoint
+        )
 
+        self.model = get_peft_model(self.model, peft_config)
+        old_state_dict = model.state_dict
+        model.state_dict = (
+            lambda self, *_, **__: get_peft_model_state_dict(self, old_state_dict())
+        ).__get__(model, type(model))
         # super().__init__(model, lora_rank, lora_train_bias)
 
     def forward(
@@ -63,5 +78,8 @@ class PolyglotKoActor(nn.Module):
         **model_kwargs,
     ) -> torch.Tensor:
         """Returns model output."""
-        output = self.model(input_ids, attention_mask=attention_mask, **model_kwargs)
-        return output
+        # output = self.model(input_ids, attention_mask=attention_mask, **model_kwargs)
+        # return output
+        return self.model.forward(
+            input_ids, attention_mask=attention_mask, **model_kwargs
+        )

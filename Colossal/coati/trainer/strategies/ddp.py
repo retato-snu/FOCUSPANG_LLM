@@ -34,7 +34,9 @@ class DDPStrategy(Strategy):
     Strategy for distributed training using torch.distributed.
     """
 
-    def __init__(self, seed: int = 42, plugin_initializer: Callable = TorchDDPPlugin) -> None:
+    def __init__(
+        self, seed: int = 42, plugin_initializer: Callable = TorchDDPPlugin
+    ) -> None:
         self.seed = seed
         super().__init__(plugin_initializer)
 
@@ -45,7 +47,12 @@ class DDPStrategy(Strategy):
             world_size = int(os.environ["WORLD_SIZE"])
             host = os.environ["MASTER_ADDR"]
             port = int(os.environ["MASTER_PORT"])
-            dist.init_process_group("nccl", init_method=f"tcp://[{host}]:{port}", world_size=world_size, rank=rank)
+            dist.init_process_group(
+                "nccl",
+                init_method=f"tcp://[{host}]:{port}",
+                world_size=world_size,
+                rank=rank,
+            )
             torch.cuda.set_device(local_rank)
         except KeyError as e:
             if force:
@@ -57,7 +64,9 @@ class DDPStrategy(Strategy):
                 raise e
 
     def _post_init(self) -> None:
-        assert isinstance(self.plugin, TorchDDPPlugin), f"{type(self).__name__}'s plugin is not initialized properly."
+        assert isinstance(
+            self.plugin, TorchDDPPlugin
+        ), f"{type(self).__name__}'s plugin is not initialized properly."
 
     def setup_distributed(self) -> None:
         self._try_init_dist(force=True)
@@ -68,7 +77,9 @@ class DDPStrategy(Strategy):
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-    def setup_dataloader(self, data_buffer: ExperienceBuffer, pin_memory: bool = False) -> DataLoader:
+    def setup_dataloader(
+        self, data_buffer: ExperienceBuffer, pin_memory: bool = False
+    ) -> DataLoader:
         return self.plugin.prepare_dataloader(
             data_buffer,
             batch_size=data_buffer.sample_batch_size,
@@ -83,19 +94,27 @@ class DDPStrategy(Strategy):
         return DistributedSampler(dataset, dist.get_world_size(), dist.get_rank())
 
     def unwrap_model(self, model: nn.Module) -> nn.Module:
-        assert isinstance(model, TorchDDPModel), "model is not wrapped by TorchDDPModel."
+        assert isinstance(
+            model, TorchDDPModel
+        ), "model is not wrapped by TorchDDPModel."
         return model.unwrap()
 
     def save_pretrained(
-        self, model: nn.Module, path: str, only_rank0: bool = True, tokenizer: Optional[PreTrainedTokenizerBase] = None
+        self,
+        model: nn.Module,
+        path: str,
+        only_rank0: bool = True,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
     ) -> None:
         if not only_rank0 or dist.get_rank() == 0:
             unwrapped_model = self.unwrap_model(model)
-            assert isinstance(unwrapped_model, (Actor, Critic, RewardModel))
+            # assert isinstance(unwrapped_model, (Actor, Critic, RewardModel))
             pretrained_model = unwrapped_model.model
             assert isinstance(pretrained_model, PreTrainedModel)
             # HACK: only use hf save_pretrained to save config
-            pretrained_model.save_pretrained(path, save_function=lambda *args, **kwargs: None)
+            pretrained_model.save_pretrained(
+                path, save_function=lambda *args, **kwargs: None
+            )
             if tokenizer is not None:
                 tokenizer.save_pretrained(path)
         model_path = os.path.join(path, "pytorch_model.bin")
