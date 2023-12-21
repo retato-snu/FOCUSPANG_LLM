@@ -8,9 +8,10 @@ Datasets for project for 2023-Fall SNU Creative integrated design lecture (Team 
 각 데이터셋의 위치는 다음과 같다.
 ```
 dataset/
-|_ sft/sft_dataset.json : sft 데이터셋
-|_ rm/rm_dataset.json : rm 데이터셋
-|_ ppo/ppo_dataset.json : ppo 데이터셋
+├ sft/sft_dataset.json : sft 데이터셋
+├ rm/rm_dataset.json : rm 데이터셋
+├ ppo/ppo_dataset.json : ppo 데이터셋
+├ code/ : 데이터셋 augmentation에 사용된 코드들
 ```
 
 ### 1. SFT(Supervised Fine-Tuning) Dataset
@@ -20,7 +21,7 @@ SFT 단계의 데이터셋은 오픈 데이터셋과 실제 사용자 데이터�
 ```
 {
     "instruction": (질문),
-    "input": (질문에 관련된 입력),
+    "input": (질문과 같이 주는 입력),
     "output": (질문에 대한 답)
 }
 ```
