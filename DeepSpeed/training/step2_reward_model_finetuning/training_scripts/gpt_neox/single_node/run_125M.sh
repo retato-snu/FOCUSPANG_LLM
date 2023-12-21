@@ -1,17 +1,20 @@
 #!/bin/bash
+# Copyright (c) Microsoft Corporation.
+# SPDX-License-Identifier: Apache-2.0
 
+# DeepSpeed Team
 OUTPUT=$1
 ZERO_STAGE=$2
 if [ "$OUTPUT" == "" ]; then
-    OUTPUT=./output/jaeyoung/1129/rm
+    OUTPUT=./output
 fi
 if [ "$ZERO_STAGE" == "" ]; then
     ZERO_STAGE=0
 fi
 mkdir -p $OUTPUT
 
-deepspeed train_rm.py \
-   --data_path rubis_rm \
+deepspeed main.py \
+   --data_path rubis \
    --data_split 2,4,4 \
    --model_name_or_path EleutherAI/polyglot-ko-1.3b \
    --num_padding_at_beginning 1 \

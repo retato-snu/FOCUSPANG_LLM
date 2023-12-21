@@ -7,24 +7,7 @@ import torch
 import deepspeed
 from deepspeed.ops.adam import FusedAdam
 from deepspeed.ops.adam import DeepSpeedCPUAdam
-from transformers import (
-    AutoModelForCausalLM,
-    SchedulerType,
-    default_data_collator,
-    get_scheduler,
-    PreTrainedTokenizerFast,
-    GPTNeoXForCausalLM,
-    
-)
-from peft import (
-    LoraConfig,
-    PeftConfig,
-    PeftModel,
-    get_peft_model,
-    get_peft_model_state_dict,
-    prepare_model_for_int8_training,
-    set_peft_model_state_dict,
-)
+from transformers import AutoModelForCausalLM, get_scheduler
 
 from utils.ds_utils import get_train_ds_config, get_eval_ds_config
 from utils.module.lora import convert_linear_layer_to_lora, only_optimize_lora_parameters, make_model_gradient_checkpointing_compatible
@@ -104,33 +87,15 @@ class DeepSpeedRLHFEngine():
             ) * self.args.gradient_accumulation_steps_actor
 
         # Model
-        # actor_model = GPTNeoXForCausalLM.from_pretrained(
-        #     actor_model_name_or_path,
-        #     load_in_8bit=False,
-        #     torch_dtype=torch.float16,
-        #     device_map={'':0},
-        # )
-        # actor_model = GPTNeoXForCausalLM.from_pretrained(
-        #     actor_model_name_or_path,
-        #     torch_dtype=torch.float16,
-        #     device_map='auto',
-        # )
         actor_model = create_hf_model(
             model_class=AutoModelForCausalLM,
             model_name_or_path=actor_model_name_or_path,
             tokenizer=self.tokenizer,
             ds_config=ds_config,
             dropout=self.args.actor_dropout)
-        # actor_model = PeftModel.from_pretrained(
-        #     actor_model,
-        #     './output/jaeyoung/sft',
-        #     torch_dtype=torch.float16,
-        #     device_map={"":0}
-        # )
 
-        # # LoRA
+        # LoRA
         if self.args.actor_lora_dim > 0:
-            print("Hello~")
             actor_model = convert_linear_layer_to_lora(
                 actor_model, self.args.actor_lora_module_name,
                 self.args.actor_lora_dim)
@@ -138,28 +103,13 @@ class DeepSpeedRLHFEngine():
                 actor_model = only_optimize_lora_parameters(actor_model)
                 actor_model = make_model_gradient_checkpointing_compatible(
                     actor_model)
-        # model = GPTNeoXForCausalLM.from_pretrained(
-        #     actor_model_name_or_path,
-        #     torch_dtype=torch.float16,
-        #     device_map="auto",
-        # )
-        
-        # config = LoraConfig(
-        #     r=8,
-        #     lora_alpha=16,
-        #     target_modules=["query_key_value", "xxx"],
-        #     lora_dropout=0.05,
-        #     bias="none",
-        #     task_type="CAUSAL_LM",
-        # )
-        # actor_model = get_peft_model(actor_model, config)
 
         # Optimizer
         AdamOptimizer = DeepSpeedCPUAdam if self.args.offload else FusedAdam
-        # optim_params = get_optimizer_grouped_parameters(
-        #     actor_model, self.args.actor_weight_decay,
-        #     self.args.actor_lora_learning_rate)
-        optim = AdamOptimizer(actor_model.parameters(),
+        optim_params = get_optimizer_grouped_parameters(
+            actor_model, self.args.actor_weight_decay,
+            self.args.actor_lora_learning_rate)
+        optim = AdamOptimizer(optim_params,
                               lr=self.args.actor_learning_rate,
                               betas=(0.9, 0.95))
 
