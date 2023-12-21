@@ -15,6 +15,9 @@ This is part of learning.
 - [ds_config_zero3.json](ds_config_zero3.json)
 - [train_rubis.sh](train_rubis.sh)
 
+This is part of inference
+
+- [chatbot.py](inference/chatbot.py)
 
 ## Citations
 
