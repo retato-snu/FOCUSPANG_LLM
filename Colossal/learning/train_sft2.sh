@@ -20,11 +20,11 @@ set_n_least_used_CUDA_VISIBLE_DEVICES() {
 set_n_least_used_CUDA_VISIBLE_DEVICES 2
 
 torchrun --standalone --nproc_per_node=2 train_sft.py \
-    --pretrain "model_output/1215" \
+    --pretrain model_output/1215 \
     --model 'polyglotko' \
     --strategy colossalai_zero2_cpu \
-    --save_path model_output/1219_sft \
-    --dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/sft_dataset/sft_dataset1.json \
+    --save_path model_output/1220_sft3 \
+    --dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/sft_dataset/dataset1.json \
     --batch_size 4 \
     --accumulation_steps 8 \
     --lr 2e-5 \
