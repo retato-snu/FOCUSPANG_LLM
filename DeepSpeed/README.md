@@ -1,11 +1,8 @@
-# ColossalAI
+# Deep Speed
 
 ## Setup
 ```
 pip install deepspeed>=0.9.0
-
-git clone https://github.com/microsoft/DeepSpeedExamples.git
-cd DeepSpeedExamples/applications/DeepSpeed-Chat/
 pip install -r requirements.txt
 pip install -e .
 ```
