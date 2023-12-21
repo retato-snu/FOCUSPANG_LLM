@@ -6,9 +6,9 @@ Implement code list during Creative Integrated Design:
 
 This is part of learning.
 
-- [gptNeoX](coati/models/gptNeoX)
-- [polyglot-ko](coati/models/polyglotko)
-- [train_sft.py](learning/train_sft.py)
+- [train_sft.py](train_sft.py)
+- [train_rm.py](train_rm.py)
+- [train_ppo.py](train_ppo.py)
 - [sft_dataset.py](coati/dataset/sft_dataset.py)
 - [train_reward_model.py](learning/train_reward_model.py)
 - [train_prompts.py](learning/train_prompts.py)
