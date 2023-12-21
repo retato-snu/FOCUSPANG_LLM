@@ -112,5 +112,5 @@ Example command
 Information about the files/code developed ourselved can be found in the README.md provided below.
 
 - [Colossal](https://github.com/retato-snu/FOCUSPANG_LLM/blob/master/Colossal/README.md)
-- [DeepSpeed](https://github.com/retato-snu/FOCUSPANG_LLM/blob/master/Colossal/README.md)
-- [Dataset](https://github.com/retato-snu/FOCUSPANG_LLM/blob/master/Colossal/README.md)
+- [DeepSpeed](https://github.com/retato-snu/FOCUSPANG_LLM/blob/master/DeepSpeed/README.md)
+- [Dataset](https://github.com/retato-snu/FOCUSPANG_LLM/blob/dataset/Colossal/README.md)
