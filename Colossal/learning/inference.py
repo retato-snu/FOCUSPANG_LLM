@@ -68,7 +68,7 @@ def eval(args):
         tokenizer.pad_token = tokenizer.unk_token
     elif args.model == "polyglotko":
         tokenizer = PreTrainedTokenizerFast.from_pretrained(
-            "EleutherAI/polyglot-ko-12.8b", add_eos_token=True
+            "EleutherAI/polyglot-ko-5.8b", add_eos_token=True
         )
         tokenizer.pad_token = tokenizer.eos_token
     else:

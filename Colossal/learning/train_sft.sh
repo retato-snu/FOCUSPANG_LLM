@@ -20,7 +20,7 @@ set_n_least_used_CUDA_VISIBLE_DEVICES() {
 set_n_least_used_CUDA_VISIBLE_DEVICES 2
 
 torchrun --standalone --nproc_per_node=2 train_sft.py \
-    --pretrain "polyglot-ko-5.8b" \
+    --pretrain "/mnt/hf/polyglot-ko-5.8b" \
     --model 'polyglotko' \
     --strategy colossalai_zero2_cpu \
     --save_path model_output/1215 \
