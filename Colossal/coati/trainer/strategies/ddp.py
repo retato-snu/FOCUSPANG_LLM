@@ -19,6 +19,25 @@ from colossalai.booster.plugin.torch_ddp_plugin import TorchDDPModel
 from .base import Strategy
 from .sampler import DistributedSampler
 
+import nvidia_smi
+
+from types import FrameType, TracebackType
+
+import pdb
+import sys
+
+
+class ForkedPdb(pdb.Pdb):
+    def interaction(
+        self, frame: FrameType | None, traceback: TracebackType | None
+    ) -> None:
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open("/dev/stdin")
+            super().interaction(frame, traceback)
+        finally:
+            sys.stdin = _stdin
+
 
 # TODO Move this to a util.py   (Moving to ray.util introduces ringed import)
 def get_grad_required_state_dict(model: nn.Module):
@@ -107,10 +126,11 @@ class DDPStrategy(Strategy):
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
     ) -> None:
         if not only_rank0 or dist.get_rank() == 0:
+            ForkedPdb().set_trace()
             unwrapped_model = self.unwrap_model(model)
             # assert isinstance(unwrapped_model, (Actor, Critic, RewardModel))
             pretrained_model = unwrapped_model.model
-            assert isinstance(pretrained_model, PreTrainedModel)
+            # assert isinstance(pretrained_model, PreTrainedModel)
             # HACK: only use hf save_pretrained to save config
             pretrained_model.save_pretrained(
                 path, save_function=lambda *args, **kwargs: None
