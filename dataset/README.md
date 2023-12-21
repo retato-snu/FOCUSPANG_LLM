@@ -5,7 +5,7 @@ Datasets for project for 2023-Fall SNU Creative integrated design lecture (Team 
 ## Structure
 
 강화학습의 3단계(SFT, RM, PPO)에 사용되는 세 종류의 데이터셋으로 구성되어 있다.
-각 데이터셋의 위치는 다음과 같다.
+각 데이터셋의 위치는 다음과 같지만, 개인정보 보안의 이유로 이 repository에서는 공개되지 않는다.
 ```
 dataset/
 ├ sft/sft_dataset.json : sft 데이터셋
