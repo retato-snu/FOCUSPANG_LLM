@@ -20,7 +20,7 @@ from peft import (
 )
 
 
-class PolyglotKoActor(Actor, nn.Module):
+class PolyglotKoActor(nn.Module):
     """
      polyglot model.
 
