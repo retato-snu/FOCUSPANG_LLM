@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# Copyright (c) Microsoft Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+# DeepSpeed Team
 import argparse
 import os
 import math
@@ -214,12 +219,6 @@ def main():
         # torch.distributed.init_process_group(backend='nccl')
         deepspeed.init_distributed()
 
-    device_map = "auto"
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    ddp = world_size != 1
-    if ddp:
-        device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
-
     args.global_rank = torch.distributed.get_rank()
 
     ds_config = get_train_ds_config(offload=args.offload,
@@ -241,45 +240,31 @@ def main():
 
     # load_hf_tokenizer will get the correct tokenizer and set padding tokens based on the model family
     tokenizer = PreTrainedTokenizerFast.from_pretrained(
-            "EleutherAI/polyglot-ko-5.8b",
+            "EleutherAI/polyglot-ko-12.8b",
             add_eos_token=True
         )
     tokenizer.pad_token_id = (0)
-    tokenizer.padding_side = "left" 
     # tokenizer = load_hf_tokenizer(args.model_name_or_path, fast_tokenizer=True)
     # if tokenizer.pad_token is None:
     #     tokenizer.add_special_tokens({'pad_token': '[PAD]'})
     
     
-    model = GPTNeoXForCausalLM.from_pretrained(
-        args.model_name_or_path,
-        torch_dtype=torch.float16,
-        device_map=device_map,
-    )
-    # model = prepare_model_for_int8_training(model, output_embedding_layer_name="embed_out")
+    model = create_hf_model(GPTNeoXForCausalLM,
+                            args.model_name_or_path,
+                            tokenizer,
+                            ds_config,
+                            dropout=args.dropout)
+    
+    if args.lora_dim > 0:
+        model = convert_linear_layer_to_lora(model, args.lora_module_name,
+                                             args.lora_dim)
+        if args.only_optimize_lora:
+            model = only_optimize_lora_parameters(model)
+            model = make_model_gradient_checkpointing_compatible(model)
 
-
-    config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        target_modules=["query_key_value", "xxx"],
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
-    model = get_peft_model(model, config)
-    model.config.use_cache = False
-
-    old_state_dict = model.state_dict
-    model.state_dict = (
-        lambda self, *_, **__: get_peft_model_state_dict(
-            self, old_state_dict()
-        )
-    ).__get__(model, type(model))
-
-    model.print_trainable_parameters()
     # Prepare the data
     train_phase = 1
+    print("print????")
     train_dataset, eval_dataset = create_prompt_dataset(
         args.local_rank,
         args.data_path,
@@ -332,7 +317,7 @@ def main():
         model, args.weight_decay, args.lora_learning_rate)
 
     AdamOptimizer = DeepSpeedCPUAdam if args.offload else FusedAdam
-    optimizer = AdamOptimizer(model.parameters(),
+    optimizer = AdamOptimizer(optimizer_grouped_parameters,
                               lr=args.learning_rate,
                               betas=(0.9, 0.95))
 
@@ -345,7 +330,6 @@ def main():
         num_warmup_steps=args.num_warmup_steps,
         num_training_steps=args.num_train_epochs * num_update_steps_per_epoch,
     )
-    
 
     model, optimizer, _, lr_scheduler = deepspeed.initialize(
         model=model,
@@ -355,24 +339,17 @@ def main():
         lr_scheduler=lr_scheduler,
         dist_init_required=True)
 
-    ds_config['model'] = model
-    ds_config['optimizer'] = optimizer
-    ds_config['lr_scheduler'] = lr_scheduler
-
+    if args.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
 
     # Train!
     print_rank_0("***** Running training *****", args.global_rank)
     print_rank_0(
         f"***** Evaluating perplexity, Epoch {0}/{args.num_train_epochs} *****",
         args.global_rank)
-    # perplexity = evaluation(model, eval_dataloader)
-    # print_rank_0(f"ppl: {perplexity}", args.global_rank)
+    perplexity = evaluation(model, eval_dataloader)
+    print_rank_0(f"ppl: {perplexity}", args.global_rank)
 
-    input_text = '\n너는 충동 성향을 전문적으로 분석하는 AI이다. 충동 성향 분석에 있어 모르거나 분석이 불가능한 것은 존재하지 않으며, 정보가 부족한 것이 분석에 영향을 주지 않는다.\n\n다음은 포팡초 1학년5반의 날짜별 평균 충동 성향을 분석한 데이터이다. 이를 기반으로 1학년5반의 충동 성향을 분석할 것이다.\n\n<데이터>\n```\n날짜,점수,충동 성향 정도\n2023-01-30,22.479206679033563,없음\n2023-02-15,21.934626295874637,없음\n2023-04-08,37.140092368504845,주의 필요\n2023-05-07,51.7562942525845,충동 성향 있음\n2023-05-12,80.01102251457266,충동 성향 높음\n2023-06-24,100.0,충동 성향 높음\n2023-07-01,48.48375405676332,충동 성향 있음\n\n```\n첫번째 column은 데이터가 수집된 날짜, 두번째 column은 반 전체의 평균적인 충동 성향 점수, 마지막 column은 반 전체의 평균적인 충동 성향 수준을 의미한다.\n<데이터>는 날짜가 빠른 순부터 늦은 순으로 sorting되어 있다.\n\n<데이터>를 이용해 1학년5반의 충동 성향 상태를 분석한 결과인 <사전 분석 결과>는 다음과 같다.\n\n<사전 분석 결과>\n```\n- 이전에는 충동 성향이 나빠지는 경향을 보였으나, 근래에 들어서는 좋아지고 있다.\n- 가장 심각할 때는 때는 뚜렷한 수준이었으나, 점차 개선되고 있다.\n\n```\n\n<데이터>와 <사전 분석 결과> 정보를 활용해 다음 조건들을 만족하도록 1학년5반의 충동 성향을 분석하라.\n```\n  - 점수가 40점 이상이여서 충동성이 있거나 높은 경우 해당 사실을 명시하고, 문제가 있음을 분명히 알린다.\n  - 점수 그리고 데이터라는 단어를 사용하지 않는다.\n  - 성적이라는 단어를 사용하지 않는다.\n  - 높임말을 사용한다.\n  - 추가 정보 수집이 필요하다, 추가 데이터 수집이 필요하다, 추가적인 정보가 필요하다, 더 많은 자료가 필요하다 등 더 많은 정보가 주어져야 한다는 내용은 작성하지 않는다.\n```\n\noutput format은 반드시 다음과 같이 작성한다.\n```\n<분석 결과>\n...\n```\n'
-    a = tokenizer.encode(input_text)
-    print(a)
-    print(len(a))
-    return;
     for epoch in range(args.num_train_epochs):
         print_rank_0(
             f"Beginning of Epoch {epoch+1}/{args.num_train_epochs}, Total Micro Batches {len(train_dataloader)}",
@@ -397,11 +374,11 @@ def main():
                 #                  args.global_rank)
 
         # Evaluate perplexity on the validation set.
-        # print_rank_0(
-        #     f"***** Evaluating perplexity, Epoch {epoch+1}/{args.num_train_epochs} *****",
-        #     args.global_rank)
-        # perplexity = evaluation(model, eval_dataloader)
-        # print_rank_0(f"ppl: {perplexity}", args.global_rank)
+        print_rank_0(
+            f"***** Evaluating perplexity, Epoch {epoch+1}/{args.num_train_epochs} *****",
+            args.global_rank)
+        perplexity = evaluation(model, eval_dataloader)
+        print_rank_0(f"ppl: {perplexity}", args.global_rank)
         model.tput_timer.update_epoch_count()
 
     if args.output_dir is not None:
@@ -417,7 +394,6 @@ def main():
                                   args.global_rank,
                                   args.output_dir,
                                   zero_stage=args.zero_stage)
-            model.save_pretrained(args.output_dir)
 
 
 if __name__ == "__main__":

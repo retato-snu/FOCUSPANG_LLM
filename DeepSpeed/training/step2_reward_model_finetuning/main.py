@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# Copyright (c) Microsoft Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+# DeepSpeed Team
 import argparse
 import os
 import math
@@ -8,36 +13,22 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
 from transformers import (
-    AutoModelForCausalLM,
     SchedulerType,
-    default_data_collator,
     get_scheduler,
     PreTrainedTokenizerFast,
-    GPTNeoXForCausalLM,
-)
-
-from peft import (
-    LoraConfig,
-    PeftConfig,
-    PeftModel,
-    get_peft_model,
-    get_peft_model_state_dict,
-    prepare_model_for_int8_training,
-    set_peft_model_state_dict,
 )
 
 import deepspeed
 from deepspeed.ops.adam import DeepSpeedCPUAdam, FusedAdam
-from deepspeed import get_accelerator
+from deepspeed.accelerator import get_accelerator
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-from utils.data.data_utils import create_prompt_dataset
+from utils.model.model_utils import create_critic_model
+from utils.data.data_utils import create_prompt_dataset, DataCollatorReward
 from utils.utils import print_rank_0, to_device, save_hf_format, set_random_seed, get_all_reduce_mean, get_optimizer_grouped_parameters, save_zero_three_model, load_hf_tokenizer
 from utils.ds_utils import get_train_ds_config
 from utils.module.lora import convert_linear_layer_to_lora, convert_lora_to_linear_layer, only_optimize_lora_parameters, make_model_gradient_checkpointing_compatible
-from utils.model.model_utils import create_hf_model
-from utils.perf import print_throughput
 
 
 def parse_args():
@@ -54,27 +45,28 @@ def parse_args():
                         type=str,
                         default='2,4,4',
                         help='Comma-separated list of proportions for training'
-                        'phase 1, 2, and 3 data. For example the split `6,2,2`'
+                        'phase 1, 2, and 3 data. For example the split `2,4,4`'
                         'will use 60%% of data for phase 1, 20%% for phase 2'
                         'and 20%% for phase 3.')
-    parser.add_argument(
-        '--sft_only_data_path',
-        nargs='*',
-        default=[],
-        help='Path to the dataset for only using in SFT phase.')
     parser.add_argument(
         '--data_output_path',
         type=str,
         default='/tmp/data_files/',
-        help=
-        'Where to store the data-related files such as shuffle index. This needs to be on a local storage of a node (not on a shared storage)'
-    )
+        help='Where to store the data-related files such as shuffle index.')
     parser.add_argument(
         "--model_name_or_path",
         type=str,
         help=
         "Path to pretrained model or model identifier from huggingface.co/models.",
         required=True,
+    )
+    parser.add_argument(
+        "--num_padding_at_beginning",
+        type=int,
+        default=1,
+        help=
+        "OPT model has a fixed number (1) of padding tokens at the beginning of the input. "
+        "We did not see this in other models but keep it as an option for now.",
     )
     parser.add_argument(
         "--per_device_train_batch_size",
@@ -97,7 +89,7 @@ def parse_args():
     parser.add_argument(
         "--learning_rate",
         type=float,
-        default=1e-3,
+        default=5e-5,
         help=
         "Initial learning rate (after the potential warmup period) to use.",
     )
@@ -143,9 +135,10 @@ def parse_args():
                         type=int,
                         default=-1,
                         help="local_rank for distributed training on gpus")
-    parser.add_argument('--gradient_checkpointing',
-                        action='store_true',
-                        help='Enable HF gradient checkpointing for model.')
+    parser.add_argument(
+        '--gradient_checkpointing',
+        action='store_true',
+        help='Enable HF gradient checkpointing for Actor model.')
     parser.add_argument(
         "--dropout",
         type=float,
@@ -191,11 +184,7 @@ def parse_args():
                         help='Enable tensorboard logging')
     parser.add_argument('--tensorboard_path',
                         type=str,
-                        default="step1_tensorboard")
-    ## Print loss
-    parser.add_argument('--print_loss',
-                        action='store_true',
-                        help='Prints loss at each step.')
+                        default="step2_tensorboard")
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
 
@@ -214,12 +203,6 @@ def main():
         # torch.distributed.init_process_group(backend='nccl')
         deepspeed.init_distributed()
 
-    device_map = "auto"
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    ddp = world_size != 1
-    if ddp:
-        device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
-
     args.global_rank = torch.distributed.get_rank()
 
     ds_config = get_train_ds_config(offload=args.offload,
@@ -227,7 +210,7 @@ def main():
                                     stage=args.zero_stage,
                                     enable_tensorboard=args.enable_tensorboard,
                                     tb_path=args.tensorboard_path,
-                                    tb_name="step1_model")
+                                    tb_name="step2_model")
     ds_config[
         'train_micro_batch_size_per_gpu'] = args.per_device_train_batch_size
     ds_config[
@@ -236,61 +219,38 @@ def main():
 
     # If passed along, set the training seed now.
     set_random_seed(args.seed)
-
     torch.distributed.barrier()
 
     # load_hf_tokenizer will get the correct tokenizer and set padding tokens based on the model family
+    # tokenizer = load_hf_tokenizer(args.model_name_or_path, fast_tokenizer=True)
     tokenizer = PreTrainedTokenizerFast.from_pretrained(
-            "EleutherAI/polyglot-ko-5.8b",
+            "EleutherAI/polyglot-ko-12.8b",
             add_eos_token=True
         )
     tokenizer.pad_token_id = (0)
-    tokenizer.padding_side = "left" 
-    # tokenizer = load_hf_tokenizer(args.model_name_or_path, fast_tokenizer=True)
-    # if tokenizer.pad_token is None:
-    #     tokenizer.add_special_tokens({'pad_token': '[PAD]'})
     
-    
-    model = GPTNeoXForCausalLM.from_pretrained(
-        args.model_name_or_path,
-        torch_dtype=torch.float16,
-        device_map=device_map,
-    )
-    # model = prepare_model_for_int8_training(model, output_embedding_layer_name="embed_out")
+    rm_model = create_critic_model(args.model_name_or_path,
+                                   tokenizer,
+                                   ds_config,
+                                   args.num_padding_at_beginning,
+                                   dropout=args.dropout)
 
+    if args.lora_dim > 0:
+        rm_model = convert_linear_layer_to_lora(rm_model,
+                                                args.lora_module_name,
+                                                args.lora_dim)
+        if args.only_optimize_lora:
+            rm_model = only_optimize_lora_parameters(rm_model)
+            rm_model = make_model_gradient_checkpointing_compatible(rm_model)
 
-    config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        target_modules=["query_key_value", "xxx"],
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
-    model = get_peft_model(model, config)
-    model.config.use_cache = False
-
-    old_state_dict = model.state_dict
-    model.state_dict = (
-        lambda self, *_, **__: get_peft_model_state_dict(
-            self, old_state_dict()
-        )
-    ).__get__(model, type(model))
-
-    model.print_trainable_parameters()
-    # Prepare the data
-    train_phase = 1
+    train_phase = 2
     train_dataset, eval_dataset = create_prompt_dataset(
-        args.local_rank,
-        args.data_path,
-        args.data_split,
-        args.data_output_path,
-        train_phase,
-        args.seed,
-        tokenizer,
-        args.max_seq_len,
-        sft_only_data_path=args.sft_only_data_path)
+        args.local_rank, args.data_path, args.data_split,
+        args.data_output_path, train_phase, args.seed, tokenizer,
+        args.max_seq_len)
+
     # DataLoaders creation:
+    data_collator = DataCollatorReward()
     if args.local_rank == -1:
         train_sampler = RandomSampler(train_dataset)
         eval_sampler = SequentialSampler(eval_dataset)
@@ -298,126 +258,120 @@ def main():
         train_sampler = DistributedSampler(train_dataset)
         eval_sampler = DistributedSampler(eval_dataset)
     train_dataloader = DataLoader(train_dataset,
-                                  collate_fn=default_data_collator,
+                                  collate_fn=data_collator,
                                   sampler=train_sampler,
                                   batch_size=args.per_device_train_batch_size)
+    eval_sampler = SequentialSampler(eval_dataset)
     eval_dataloader = DataLoader(eval_dataset,
-                                 collate_fn=default_data_collator,
+                                 collate_fn=data_collator,
                                  sampler=eval_sampler,
                                  batch_size=args.per_device_eval_batch_size)
 
-    def evaluation(model, eval_dataloader):
+    def evaluation_reward(model, eval_dataloader):
         model.eval()
-        losses = 0
+        correct_predictions = 0
+        total_predictions = 0
+        scores = 0
         for step, batch in enumerate(eval_dataloader):
             batch = to_device(batch, device)
             with torch.no_grad():
                 outputs = model(**batch)
 
-            loss = outputs.loss
-            losses += loss.float()
-        losses = losses / (step + 1)
+            chosen = outputs["chosen_mean_scores"]
+            rejected = outputs["rejected_mean_scores"]
+            correct_predictions += (chosen > rejected).sum()
+            total_predictions += chosen.shape[0]
+            scores += outputs["chosen_mean_scores"].mean().float()
+            if step == 99:  # For faster evaluation and debugging
+                break
+        acc = correct_predictions / total_predictions
+        scores = scores / (step + 1)
         try:
-            perplexity = torch.exp(losses)
-        except OverflowError:
-            perplexity = float("inf")
-        try:
-            perplexity = get_all_reduce_mean(perplexity).item()
+            acc = get_all_reduce_mean(acc).item()
+            scores = get_all_reduce_mean(scores).item()
         except:
             pass
-        return perplexity
+        return scores, acc
 
     # Split weights in two groups, one with weight decay and the other not.
     optimizer_grouped_parameters = get_optimizer_grouped_parameters(
-        model, args.weight_decay, args.lora_learning_rate)
+        rm_model, args.weight_decay, args.lora_learning_rate)
 
     AdamOptimizer = DeepSpeedCPUAdam if args.offload else FusedAdam
-    optimizer = AdamOptimizer(model.parameters(),
+    optimizer = AdamOptimizer(optimizer_grouped_parameters,
                               lr=args.learning_rate,
                               betas=(0.9, 0.95))
 
     num_update_steps_per_epoch = math.ceil(
         len(train_dataloader) / args.gradient_accumulation_steps)
-    
+
     lr_scheduler = get_scheduler(
         name=args.lr_scheduler_type,
         optimizer=optimizer,
         num_warmup_steps=args.num_warmup_steps,
         num_training_steps=args.num_train_epochs * num_update_steps_per_epoch,
     )
-    
 
-    model, optimizer, _, lr_scheduler = deepspeed.initialize(
-        model=model,
+    rm_model, optimizer, _, lr_scheduler = deepspeed.initialize(
+        model=rm_model,
         optimizer=optimizer,
         args=args,
         config=ds_config,
         lr_scheduler=lr_scheduler,
         dist_init_required=True)
 
-    ds_config['model'] = model
-    ds_config['optimizer'] = optimizer
-    ds_config['lr_scheduler'] = lr_scheduler
-
+    if args.gradient_checkpointing:
+        rm_model.gradient_checkpointing_enable()
 
     # Train!
     print_rank_0("***** Running training *****", args.global_rank)
-    print_rank_0(
-        f"***** Evaluating perplexity, Epoch {0}/{args.num_train_epochs} *****",
-        args.global_rank)
-    # perplexity = evaluation(model, eval_dataloader)
-    # print_rank_0(f"ppl: {perplexity}", args.global_rank)
 
-    input_text = '\n너는 충동 성향을 전문적으로 분석하는 AI이다. 충동 성향 분석에 있어 모르거나 분석이 불가능한 것은 존재하지 않으며, 정보가 부족한 것이 분석에 영향을 주지 않는다.\n\n다음은 포팡초 1학년5반의 날짜별 평균 충동 성향을 분석한 데이터이다. 이를 기반으로 1학년5반의 충동 성향을 분석할 것이다.\n\n<데이터>\n```\n날짜,점수,충동 성향 정도\n2023-01-30,22.479206679033563,없음\n2023-02-15,21.934626295874637,없음\n2023-04-08,37.140092368504845,주의 필요\n2023-05-07,51.7562942525845,충동 성향 있음\n2023-05-12,80.01102251457266,충동 성향 높음\n2023-06-24,100.0,충동 성향 높음\n2023-07-01,48.48375405676332,충동 성향 있음\n\n```\n첫번째 column은 데이터가 수집된 날짜, 두번째 column은 반 전체의 평균적인 충동 성향 점수, 마지막 column은 반 전체의 평균적인 충동 성향 수준을 의미한다.\n<데이터>는 날짜가 빠른 순부터 늦은 순으로 sorting되어 있다.\n\n<데이터>를 이용해 1학년5반의 충동 성향 상태를 분석한 결과인 <사전 분석 결과>는 다음과 같다.\n\n<사전 분석 결과>\n```\n- 이전에는 충동 성향이 나빠지는 경향을 보였으나, 근래에 들어서는 좋아지고 있다.\n- 가장 심각할 때는 때는 뚜렷한 수준이었으나, 점차 개선되고 있다.\n\n```\n\n<데이터>와 <사전 분석 결과> 정보를 활용해 다음 조건들을 만족하도록 1학년5반의 충동 성향을 분석하라.\n```\n  - 점수가 40점 이상이여서 충동성이 있거나 높은 경우 해당 사실을 명시하고, 문제가 있음을 분명히 알린다.\n  - 점수 그리고 데이터라는 단어를 사용하지 않는다.\n  - 성적이라는 단어를 사용하지 않는다.\n  - 높임말을 사용한다.\n  - 추가 정보 수집이 필요하다, 추가 데이터 수집이 필요하다, 추가적인 정보가 필요하다, 더 많은 자료가 필요하다 등 더 많은 정보가 주어져야 한다는 내용은 작성하지 않는다.\n```\n\noutput format은 반드시 다음과 같이 작성한다.\n```\n<분석 결과>\n...\n```\n'
-    a = tokenizer.encode(input_text)
-    print(a)
-    print(len(a))
-    return;
+    print_rank_0(
+        f"***** Evaluating reward, Epoch {0}/{args.num_train_epochs} *****",
+        args.global_rank)
+    reward_score, acc = evaluation_reward(rm_model, eval_dataloader)
+    print_rank_0(
+        f"chosen_last_scores (higher is better) : {reward_score}, acc (higher is better) : {acc}",
+        args.global_rank)
+
     for epoch in range(args.num_train_epochs):
         print_rank_0(
             f"Beginning of Epoch {epoch+1}/{args.num_train_epochs}, Total Micro Batches {len(train_dataloader)}",
             args.global_rank)
-        model.train()
-        import time
+        rm_model.train()
+        mean_loss = 0
         for step, batch in enumerate(train_dataloader):
-            start = time.time()
             batch = to_device(batch, device)
-            outputs = model(**batch, use_cache=False)
-            loss = outputs.loss
-            if args.print_loss:
-                print(
-                    f"Epoch: {epoch}, Step: {step}, Rank: {torch.distributed.get_rank()}, loss = {loss}"
-                )
-            model.backward(loss)
-            model.step()
-            end = time.time()
-            if torch.distributed.get_rank() == 0:
-                pass
-                # print_throughput(model, args, end - start,
-                #                  args.global_rank)
-
-        # Evaluate perplexity on the validation set.
-        # print_rank_0(
-        #     f"***** Evaluating perplexity, Epoch {epoch+1}/{args.num_train_epochs} *****",
-        #     args.global_rank)
-        # perplexity = evaluation(model, eval_dataloader)
-        # print_rank_0(f"ppl: {perplexity}", args.global_rank)
-        model.tput_timer.update_epoch_count()
+            outputs = rm_model(**batch, use_cache=False)
+            loss = outputs["loss"]
+            rm_model.backward(loss)
+            rm_model.step()
+            mean_loss += loss.item()
+        print_rank_0(
+            f"Epoch {epoch+1}/{args.num_train_epochs} with loss {mean_loss/(step+1)}",
+            args.global_rank)
+        # Evaluate reward_loss on the validation set.
+        print_rank_0(
+            f"***** Evaluating reward, Epoch {epoch+1}/{args.num_train_epochs} *****",
+            args.global_rank)
+        reward_score, acc = evaluation_reward(rm_model, eval_dataloader)
+        print_rank_0(
+            f"chosen_last_scores (higher is better) : {reward_score}, acc (higher is better) : {acc}",
+            args.global_rank)
+        rm_model.tput_timer.update_epoch_count()
 
     if args.output_dir is not None:
-        print_rank_0('saving the final model ...', args.global_rank)
-        model = convert_lora_to_linear_layer(model)
+        print_rank_0('saving model ...', args.global_rank)
+        rm_model = convert_lora_to_linear_layer(rm_model)
 
         if args.global_rank == 0:
-            save_hf_format(model, tokenizer, args)
-
+            save_hf_format(rm_model, tokenizer, args)
         if args.zero_stage == 3:
-            # For zero stage 3, each gpu only has a part of the model, so we need a special save function
-            save_zero_three_model(model,
+            # for zero stage 3, each gpu only has a part of the model, so we need to save the model on each gpu by using DS-Engine
+            save_zero_three_model(rm_model,
                                   args.global_rank,
                                   args.output_dir,
                                   zero_stage=args.zero_stage)
-            model.save_pretrained(args.output_dir)
 
 
 if __name__ == "__main__":
