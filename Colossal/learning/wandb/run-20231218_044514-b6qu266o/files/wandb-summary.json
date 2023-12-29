@@ -1,1 +1,0 @@
-{"global_step": 1023, "_timestamp": 1702875331.6863449, "train/loss": 0.463134765625, "train/lr": 0.0, "train/dist": 1.9638671875, "train/acc": 0.3333333432674408, "_runtime": 616.9101028442383, "_step": 1023, "_wandb": {"runtime": 616}, "eval/dist": 1.9676177501678467, "eval/acc": 0.31501832604408264}
