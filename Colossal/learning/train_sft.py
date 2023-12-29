@@ -126,7 +126,7 @@ def train(args):
         else:
             raise ValueError(f'Unsupported model "{args.model}"')
 
-        model.to(torch.float16).to(torch.cuda.current_device())
+        model.to(torch.cuda.current_device())
         print_gpu_memory()
 
     # configure tokenizer
@@ -181,11 +181,8 @@ def train(args):
         import bitsandbytes
 
         logger.info("Using AdamW8bit")
-        # ForkedPdb().set_trace()
-        # optim = Adam(model.parameters(), fused=True, lr=args.lr)
-        optim = HybridAdam(model.parameters(), lr=args.lr, clipping_norm=1.0)
 
-        # optim = bitsandbytes.optim.AdamW8bit(model.parameters(), lr=args.lr)
+        optim = bitsandbytes.optim.AdamW8bit(model.parameters(), lr=args.lr)
 
     # configure dataset
     if args.dataset == "yizhongw/self_instruct":

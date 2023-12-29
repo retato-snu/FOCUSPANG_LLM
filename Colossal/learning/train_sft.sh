@@ -21,7 +21,7 @@ torchrun --standalone --nproc_per_node=2 train_sft.py \
     --pretrain "/mnt/hf/polyglot-ko-12.8b" \
     --model 'polyglotko' \
     --strategy colossalai_zero2 \
-    --save_path model_output/quant0_12.8 \
+    --save_path model_output/quant1_12.8 \
     --dataset /mnt/FOCUSPANG_LLM/FOCUSPANG_Private/Data/Focuspang/sft_dataset/dataset1.json \
     --batch_size 2 \
     --accumulation_steps 8 \

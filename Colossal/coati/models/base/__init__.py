@@ -18,9 +18,9 @@ def get_base_model(model: Union[Actor, Critic, RewardModel]) -> nn.Module:
     Returns:
         nn.Module: the base model
     """
-    assert isinstance(
-        model, (Actor, Critic, RewardModel)
-    ), f"Expect Actor, Critic or RewardModel, got {type(model)}, use unwrap_model first."
+    # assert isinstance(
+    #     model, (Actor, Critic, RewardModel)
+    # ), f"Expect Actor, Critic or RewardModel, got {type(model)}, use unwrap_model first."
     return model.model
 
 

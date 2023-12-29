@@ -1,5 +1,12 @@
 # 8bit Learning
 
+## Changed list
+
+Base Model and actor is modified.
+[base](Colossal/coati/models/base/__init__.py)
+[actor](Colossal/coati/models/polyglotko/polyglotko_actor.py)
+[train](Colossal/learning/train_sft.py)
+
 ## Need to modify library
 
 Need to modify library code with my code.
