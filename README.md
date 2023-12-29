@@ -33,13 +33,7 @@ Install torch
 
 Install Transfomer
 
-`git clone https://github.com/hpcaitech/transformers.git`
-
-`cd transformer`
-
-`pip install .`
-
-`cd ..`
+`pip install transformers`
 
 Install flash-attention
 
