@@ -2,7 +2,7 @@
 
 ## Need to install additional library
 
-`pip install transformers==4.30.2`
+`pip install transformers==4.36.2`
 
 `pip install colossalai=0.3.3`
 
